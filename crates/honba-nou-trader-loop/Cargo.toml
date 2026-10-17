@@ -1,0 +1,11 @@
+[package]
+name = "honba-nou-trader-loop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+tracing.workspace = true
+honba-kokoro-risk.workspace = true
+honba-nou-llm.workspace = true
