@@ -1,5 +1,5 @@
 //! Async trader loop per strategy instance.
-use honba_kokoro_risk::RiskLimits;
+use honba_risk::RiskLimits;
 use honba_nou_llm::{LlmError, LlmProvider};
 use std::sync::Arc;
 

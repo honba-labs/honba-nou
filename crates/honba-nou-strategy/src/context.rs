@@ -312,8 +312,8 @@ impl<'a> StrategyContext for CacheContext<'a> {
             .cache
             .positions()
             .iter()
-            .filter(|(_, &qty)| qty.abs() > EPSILON)
-            .map(|(k, &v)| (k.clone(), v))
+            .filter(|(_, qty)| qty.abs() > EPSILON)
+            .map(|(k, v)| (k.clone(), *v))
             .collect();
         list.sort_by(|a, b| {
             a.0.symbol()

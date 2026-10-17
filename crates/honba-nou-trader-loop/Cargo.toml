@@ -7,5 +7,5 @@ license.workspace = true
 [dependencies]
 tokio.workspace = true
 tracing.workspace = true
-honba-kokoro-risk.workspace = true
+honba-risk.workspace = true
 honba-nou-llm.workspace = true

@@ -1,10 +1,16 @@
 //! Unit tests for this crate, one file per area.
 
+mod dsr;
 mod equity_stats;
 mod error;
+mod math;
+mod monte_carlo;
+mod pbo;
 mod report;
 mod round_trip;
 mod trade_stats;
+mod validation;
+mod walk_forward;
 
 use honba_entities::PositionSide;
 use honba_messages::{Exchange, InstrumentId, UnixNanos};
