@@ -1,5 +1,5 @@
 [package]
-name = "honba-analytics"
+name = "honba-nou-analytics"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
