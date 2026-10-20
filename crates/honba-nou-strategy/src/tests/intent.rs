@@ -176,12 +176,14 @@ fn validate_rejects_each_broken_rule() {
     for (intent, err) in cases {
         assert_eq!(intent.validate(), Err(err), "{intent:?}");
     }
-    assert!(OrderIntent {
-        quantity: f64::NAN,
-        ..base
-    }
-    .validate()
-    .is_err());
+    assert!(
+        OrderIntent {
+            quantity: f64::NAN,
+            ..base
+        }
+        .validate()
+        .is_err()
+    );
 }
 
 #[test]

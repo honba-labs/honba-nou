@@ -32,12 +32,13 @@ pub use dyn_strategy::DynStrategy;
 pub use intent::{IntentError, OrderIntent};
 pub use ir::{IrError, IrSubscriptions, IrUniverse, StrategyIr};
 pub use manifest::{
-    param_range_to_schema, parameter_grid_from_manifest, sweep_space_from_manifest, ManifestError,
-    ParameterSpec, StrategyManifest, Subscriptions, TimeframeSpec, Universe, STRATEGY_API_VERSION,
+    ManifestError, ParameterSpec, STRATEGY_API_VERSION, StrategyManifest, Subscriptions,
+    TimeframeSpec, Universe, param_range_to_schema, parameter_grid_from_manifest,
+    sweep_space_from_manifest,
 };
 pub use rsi_reversal::RsiReversal;
 pub use runner::{IntentRejection, StrategyRunner, SubmittedIntent, SuppressedIntent};
-pub use sma_crossover::{SmaCrossover, MAX_SMA_PERIOD};
+pub use sma_crossover::{MAX_SMA_PERIOD, SmaCrossover};
 pub use strategy::{Strategy, StrategyAdapter};
 
 #[cfg(test)]

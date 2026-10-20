@@ -11,7 +11,7 @@ use honba_messages::{
     TradingState, UnixNanos,
 };
 use honba_risk::{
-    check_state, RiskCheck, RiskDecision, RiskLimits, RiskRefusal, RiskRequest, RiskStage,
+    RiskCheck, RiskDecision, RiskLimits, RiskRefusal, RiskRequest, RiskStage, check_state,
 };
 
 use crate::context::{LedgerContext, StrategyContext};

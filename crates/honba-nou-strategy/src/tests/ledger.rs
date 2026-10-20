@@ -181,9 +181,10 @@ fn a_fill_whose_costs_are_in_another_currency_is_refused_whole() {
 fn a_fill_whose_notional_cannot_be_represented_is_refused_whole() {
     let nifty = id("NIFTY50", "NSE");
     let mut ctx = LedgerContext::with_cash(Money::new(100_000, Currency::Inr));
-    assert!(ctx
-        .apply_fill(&fill(&nifty, OrderSide::Buy, 1e12, 1e12, 0.0))
-        .is_err());
+    assert!(
+        ctx.apply_fill(&fill(&nifty, OrderSide::Buy, 1e12, 1e12, 0.0))
+            .is_err()
+    );
     assert_eq!(ctx.cash(), Money::new(100_000, Currency::Inr));
     assert_eq!(ctx.position(&nifty), 0.0);
 }
