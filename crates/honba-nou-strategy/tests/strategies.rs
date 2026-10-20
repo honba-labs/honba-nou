@@ -5,8 +5,8 @@ use honba_messages::{OrderSide, UnixNanos};
 use honba_strategy::{
     BuyAndHold, LedgerContext, OrderIntent, RsiReversal, SmaCrossover, Strategy, StrategyAdapter,
 };
-use honba_testing::fixtures::{any_instrument, flat_bar};
 use honba_testing::VecFeed;
+use honba_testing::fixtures::{any_instrument, flat_bar};
 
 // --- BuyAndHold ---
 

@@ -12,8 +12,8 @@ use honba_messages::{Bar, Event, InstrumentId, Order, UnixNanos};
 use honba_strategy::{
     ManifestError, OrderIntent, Strategy, StrategyContext, StrategyManifest, StrategyRunner,
 };
-use honba_testing::fixtures::instrument;
 use honba_testing::VecFeed;
+use honba_testing::fixtures::instrument;
 use serde_json::Value;
 
 fn fixture(name: &str) -> Value {

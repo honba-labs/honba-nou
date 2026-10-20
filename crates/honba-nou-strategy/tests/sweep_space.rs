@@ -2,8 +2,8 @@
 
 use honba_messages::{BarAggregation, Exchange, InstrumentId};
 use honba_strategy::{
-    parameter_grid_from_manifest, sweep_space_from_manifest, ParameterSpec, StrategyManifest,
-    Subscriptions, TimeframeSpec, Universe,
+    ParameterSpec, StrategyManifest, Subscriptions, TimeframeSpec, Universe,
+    parameter_grid_from_manifest, sweep_space_from_manifest,
 };
 use serde_json::json;
 
