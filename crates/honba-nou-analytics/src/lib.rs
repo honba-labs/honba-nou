@@ -35,18 +35,18 @@ pub mod trade_stats;
 pub mod validation;
 pub mod walk_forward;
 
-pub use cost_stress::{compute_cost_stress, CostStressConfig, CostStressResult};
-pub use dsr::{compute_dsr, expected_max_sharpe, DsrConfig, DsrResult};
+pub use cost_stress::{CostStressConfig, CostStressResult, compute_cost_stress};
+pub use dsr::{DsrConfig, DsrResult, compute_dsr, expected_max_sharpe};
 pub use equity_stats::EquityStats;
 pub use error::{AnalyticsError, Result};
-pub use holdout::{compute_holdout, HoldoutConfig, HoldoutResult};
-pub use monte_carlo::{run_block_bootstrap, MonteCarloConfig, MonteCarloResult};
-pub use pbo::{compute_pbo, PboConfig, PboResult};
+pub use holdout::{HoldoutConfig, HoldoutResult, compute_holdout};
+pub use monte_carlo::{MonteCarloConfig, MonteCarloResult, run_block_bootstrap};
+pub use pbo::{PboConfig, PboResult, compute_pbo};
 pub use report::PerformanceReport;
 pub use round_trip::RoundTrip;
 pub use trade_stats::TradeStats;
 pub use validation::ValidationBlock;
-pub use walk_forward::{compute_walk_forward, WalkForwardConfig, WalkForwardResult};
+pub use walk_forward::{WalkForwardConfig, WalkForwardResult, compute_walk_forward};
 
 #[cfg(test)]
 mod tests;

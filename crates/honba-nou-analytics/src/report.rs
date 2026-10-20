@@ -2,10 +2,10 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::Result;
 use crate::equity_stats::EquityStats;
 use crate::round_trip::RoundTrip;
 use crate::trade_stats::TradeStats;
-use crate::Result;
 
 /// A complete performance report: trade stats plus equity stats.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

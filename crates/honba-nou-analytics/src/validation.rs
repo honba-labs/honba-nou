@@ -3,12 +3,12 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::cost_stress::{compute_cost_stress, CostStressConfig, CostStressResult};
-use crate::dsr::{compute_dsr, DsrConfig, DsrResult};
-use crate::holdout::{compute_holdout, HoldoutConfig, HoldoutResult};
-use crate::monte_carlo::{run_block_bootstrap, MonteCarloConfig, MonteCarloResult};
-use crate::pbo::{compute_pbo, PboConfig, PboResult};
-use crate::walk_forward::{compute_walk_forward, WalkForwardConfig, WalkForwardResult};
+use crate::cost_stress::{CostStressConfig, CostStressResult, compute_cost_stress};
+use crate::dsr::{DsrConfig, DsrResult, compute_dsr};
+use crate::holdout::{HoldoutConfig, HoldoutResult, compute_holdout};
+use crate::monte_carlo::{MonteCarloConfig, MonteCarloResult, run_block_bootstrap};
+use crate::pbo::{PboConfig, PboResult, compute_pbo};
+use crate::walk_forward::{WalkForwardConfig, WalkForwardResult, compute_walk_forward};
 
 /// Comprehensive statistical validation block for a backtest or parameter sweep.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]

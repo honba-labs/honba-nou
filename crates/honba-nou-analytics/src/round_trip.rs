@@ -67,7 +67,7 @@ impl RoundTrip {
             _ => {
                 return Err(AnalyticsError::TradeMismatch(
                     "entry and exit must be opposite sides".into(),
-                ))
+                ));
             }
         };
 
@@ -77,7 +77,7 @@ impl RoundTrip {
             _ => {
                 return Err(AnalyticsError::TradeMismatch(
                     "unsupported position side".into(),
-                ))
+                ));
             }
         };
         // Fees are ledger Money; gross and net stay f64 statistics, so the
