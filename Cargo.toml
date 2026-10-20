@@ -25,6 +25,7 @@ anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 rust_decimal = "1"
+rust_decimal_macros = "1"
 async-trait = "0.1"
 futures = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
@@ -34,6 +35,10 @@ axum = "0.7"
 clap = { version = "4", features = ["derive"] }
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "sqlite", "postgres", "chrono"] }
 schemars = { version = "0.8", features = ["derive"] }
+sha2 = "0.10"
+
+honba-core            = { path = "../honba-core" }
+honba-mon             = { path = "../honba-mon" }
 
 honba-nou-agent       = { path = "crates/honba-nou-agent" }
 honba-nou-analytics   = { path = "crates/honba-nou-analytics" }
