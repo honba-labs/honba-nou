@@ -66,6 +66,7 @@
 
 - [ ] **Task 1.1: Dependency & Domain Type Unification**
   - Wire `honba-core` into `honba-nou/Cargo.toml`.
+  - Migrate `StrategyRunner` and `trader-loop` from excised `honba-kokoro-risk` to `honba-mon` and evaluate `Decision` against `RiskEngine` per [Risk Migration Plan](../honba-docs/docs/architecture/migration_plan_kokoro_risk_to_mon.md).
   - Remove all raw float usage in AI completions, enforcing `Price`, `Quantity`, `Money`, and `rust_decimal::Decimal`.
   - Define `honba-nou-core` crate providing shared traits and prompt types.
 
