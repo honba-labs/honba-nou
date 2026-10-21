@@ -171,6 +171,33 @@
 
 ---
 
+### Phase 6: StockSharp Odysseus Port & Genetic Strategy Synthesizer (P1)
+> **Porting StockSharp Odysseus (StockSharp.Algo.Analytics / Odysseus)**:
+> Automated genetic strategy generation, decision rule tree synthesis, and market regime clustering ported from C# to Rust/Python.
+
+- [ ] **Task 6.1: Odysseus Genetic Rule Tree Engine**
+  - [ ] Port StockSharp Odysseus Strategy Genome / Abstract Syntax Tree (AST):
+    - Condition Nodes: Indicator threshold comparisons (e.g. `RSI < 30`, `Close > EMA_50`), crossover operators, logical `AND` / `OR` / `NOT` branching.
+    - Action Nodes: Order intents (`PlaceBuy`, `PlaceSell`, `ClosePosition`, `TrailStop`).
+    - Position Sizing Nodes: Fixed notional, Kelly criterion, volatility-adjusted sizing.
+  - [ ] Implement genetic programming operators:
+    - Sub-tree crossover (swapping branch logic between parent rule trees).
+    - Point mutation (perturbing indicator parameters, swapping operators `>` to `<`, or substituting indicators from the 100+ StockSharp catalog).
+    - Multi-objective tournament selection preserving Pareto frontier (Sharpe, Profit Factor, Drawdown).
+
+- [ ] **Task 6.2: Market Regime Analytics (StockSharp Analytics Port)**
+  - [ ] Implement statistical market state classifiers:
+    - Hidden Markov Models (HMM) for bull/bear/sideways regime detection.
+    - Gaussian Mixture Models (GMM) and KMeans clustering on volatility, trend slope, and order book imbalance.
+  - [ ] Support regime-conditional rule execution (e.g., enable trend-following sub-tree only during high-ADX trending regimes).
+
+- [ ] **Task 6.3: Hybrid AI + Odysseus Auto-Synthesizer**
+  - [ ] Frontier LLM (Claude/Gemini) formulates macro hypotheses and selects candidate indicator families.
+  - [ ] Odysseus genetic engine searches the combinatorial space of exact threshold rules and branch conditions over historical tick datasets.
+  - [ ] Validated rule trees automatically compile into declarative `StrategySpec` JSON or native Python `Strategy` classes.
+
+---
+
 ## 3. Verification & CI Test Suite
 
 - [ ] `cargo test -p honba-nou-core`: Unit tests for Decision parser, grounding checks, and indicator catalog.
