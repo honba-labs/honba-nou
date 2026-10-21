@@ -10,9 +10,9 @@ use honba_engine::{Handler, Result};
 use honba_messages::{Bar, Event, OrderSide, UnixNanos};
 use honba_sim::{Behavior, ScriptedExecution};
 use honba_strategy::{OrderIntent, Strategy, StrategyContext, StrategyRunner};
-use honba_testing::fixtures::instrument;
 use honba_testing::VecFeed;
-use serde_json::{json, Value};
+use honba_testing::fixtures::instrument;
+use serde_json::{Value, json};
 
 fn fixture() -> Value {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

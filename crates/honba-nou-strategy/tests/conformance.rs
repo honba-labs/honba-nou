@@ -17,7 +17,7 @@ use honba_strategy::{
     BuyAndHold, ContractProbe, LedgerContext, SmaCrossover, Strategy, StrategyContext,
     StrategyRunner,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn fixture() -> Value {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

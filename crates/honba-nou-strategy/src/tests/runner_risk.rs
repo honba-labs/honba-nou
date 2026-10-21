@@ -13,8 +13,8 @@ use honba_risk::{
     OrderRateLimit, RiskConfigError, RiskLimits, RiskRefusal, RiskStage, RulesSource,
 };
 use honba_sim::ScriptedExecution;
-use honba_testing::fixtures::any_instrument;
 use honba_testing::VecFeed;
+use honba_testing::fixtures::any_instrument;
 
 use crate::{OrderIntent, Strategy, StrategyContext, StrategyRunner};
 
@@ -119,9 +119,11 @@ fn holds_risk_stage_only_with_a_stage() {
     let (plain, _) = runner(vec![]);
     assert!(!plain.holds_risk_stage());
     let (staged, _) = runner(vec![]);
-    assert!(staged
-        .with_risk(stage(RiskLimits::default(), true))
-        .holds_risk_stage());
+    assert!(
+        staged
+            .with_risk(stage(RiskLimits::default(), true))
+            .holds_risk_stage()
+    );
 }
 
 #[test]

@@ -6,8 +6,8 @@
 use honba_engine::{AlgoError, ExecutionEngine, Handler, Result};
 use honba_entities::{Currency, Trade};
 use honba_messages::{Order, OrderId, OrderSide, UnixNanos};
-use honba_testing::fixtures::instrument;
 use honba_testing::VecFeed;
+use honba_testing::fixtures::instrument;
 
 use crate::{OrderIntent, Strategy, StrategyContext, StrategyRunner};
 

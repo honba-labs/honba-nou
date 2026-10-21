@@ -16,8 +16,8 @@ use honba_risk::{
 };
 use honba_sim::{Behavior, ScriptedExecution};
 use honba_strategy::{OrderIntent, Strategy, StrategyContext, StrategyRunner};
-use honba_testing::fixtures::any_instrument;
 use honba_testing::VecFeed;
+use honba_testing::fixtures::any_instrument;
 
 struct Rules(BTreeMap<InstrumentId, InstrumentRules>);
 

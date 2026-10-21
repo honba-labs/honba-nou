@@ -3,8 +3,8 @@
 use honba_engine::Handler;
 use honba_messages::UnixNanos;
 use honba_sim::{BarFillEngine, Behavior, ScriptedExecution};
-use honba_testing::fixtures::any_instrument;
 use honba_testing::VecFeed;
+use honba_testing::fixtures::any_instrument;
 
 use crate::{BuyAndHold, StrategyContext, StrategyRunner};
 

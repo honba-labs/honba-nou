@@ -7,8 +7,8 @@ use honba_engine::{ExecutionEngine, Handler, Result};
 use honba_entities::{Currency, Money, Trade};
 use honba_messages::{Bar, Event, InstrumentId, Order, OrderSide, QuoteTick, TradeTick, UnixNanos};
 use honba_strategy::{LedgerContext, OrderIntent, Strategy, StrategyContext, StrategyRunner};
-use honba_testing::fixtures::{any_instrument, instrument};
 use honba_testing::VecFeed;
+use honba_testing::fixtures::{any_instrument, instrument};
 
 type Log = Arc<Mutex<Vec<(&'static str, u64)>>>;
 

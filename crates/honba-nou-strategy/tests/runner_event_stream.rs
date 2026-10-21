@@ -10,8 +10,8 @@ use honba_engine::{Handler, Result};
 use honba_messages::{Bar, InstrumentId, OrderStatus, UnixNanos};
 use honba_sim::{Behavior, ScriptedExecution, VenueAction};
 use honba_strategy::{OrderIntent, Strategy, StrategyContext, StrategyRunner};
-use honba_testing::fixtures::instrument;
 use honba_testing::VecFeed;
+use honba_testing::fixtures::instrument;
 
 /// Buys `qty` of each symbol on the first bar it sees.
 struct BuyOnce {

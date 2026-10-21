@@ -11,8 +11,8 @@ use honba_engine::{Engine, ExecutionEngine, Result};
 use honba_entities::Trade;
 use honba_messages::{Bar, InstrumentId, Order, OrderType};
 use honba_strategy::{IntentError, OrderIntent, Strategy, StrategyContext, StrategyRunner};
-use honba_testing::fixtures::instrument;
 use honba_testing::VecFeed;
+use honba_testing::fixtures::instrument;
 
 fn id() -> InstrumentId {
     instrument("NIFTY50")

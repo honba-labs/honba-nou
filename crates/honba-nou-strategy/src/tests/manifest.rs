@@ -4,8 +4,8 @@ use honba_messages::{BarAggregation, Exchange, InstrumentId};
 use serde_json::json;
 
 use crate::manifest::{
-    param_range_to_schema, ManifestError, ParameterSpec, StrategyManifest, Subscriptions,
-    TimeframeSpec, Universe, STRATEGY_API_VERSION,
+    ManifestError, ParameterSpec, STRATEGY_API_VERSION, StrategyManifest, Subscriptions,
+    TimeframeSpec, Universe, param_range_to_schema,
 };
 
 fn any_id(symbol: &str) -> InstrumentId {

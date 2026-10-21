@@ -10,7 +10,7 @@
 use honba_engine::{Handler, Result};
 use honba_messages::{Bar, InstrumentId, UnixNanos};
 use honba_sim::BarFillEngine;
-use honba_testing::{fixtures::any_instrument, VecFeed};
+use honba_testing::{VecFeed, fixtures::any_instrument};
 
 use crate::{
     BuyAndHold, OrderIntent, RsiReversal, SmaCrossover, Strategy, StrategyContext, StrategyRunner,

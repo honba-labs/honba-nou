@@ -8,8 +8,8 @@ use honba_entities::Trade;
 use honba_messages::{Bar, UnixNanos};
 use honba_sim::{Behavior, ScriptedExecution};
 use honba_strategy::{OrderIntent, Strategy, StrategyContext, StrategyRunner};
-use honba_testing::fixtures::instrument;
 use honba_testing::VecFeed;
+use honba_testing::fixtures::instrument;
 
 /// Buys the listed quantities of `X` on the first bar; on a fill of the first
 /// order it submits `follow_up` more (if any).
