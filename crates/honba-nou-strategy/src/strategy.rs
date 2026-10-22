@@ -1,8 +1,7 @@
-//! The `Strategy` trait and its adapter into the event kernel.
+//! The `Strategy` trait and its adapter for context-driven execution.
 
-use honba_engine::{Handler, Result};
-use honba_entities::Trade;
-use honba_messages::{Bar, Event, QuoteTick, TradeTick, UnixNanos};
+use honba_core::{Bar, Event, InstrumentId, QuoteTick, Trade, TradeTick, UnixNanos, OrderSide};
+use anyhow::Result;
 
 use crate::context::{LedgerContext, StrategyContext};
 use crate::intent::{IntentError, OrderIntent};
@@ -70,27 +69,12 @@ pub trait Strategy: Send + 'static {
     }
 }
 
-/// Wraps a [`Strategy`] and its [`LedgerContext`] so it can be added to an
-/// [`honba_engine::Engine`].
+/// Wraps a [`Strategy`] and its [`LedgerContext`] for context-driven execution.
 ///
 /// The adapter sets the context clock to each event's `ts_init` and
 /// translates [`Event`] variants into the strategy's typed hooks. Submitted
-/// intents stay in the context until drained ([`Self::drain_intents`]);
-/// [`StrategyRunner`](crate::StrategyRunner) does that and executes them.
-///
-/// ```
-/// use honba_engine::Engine;
-/// use honba_strategy::{BuyAndHold, StrategyAdapter};
-/// use honba_messages::{InstrumentId, Exchange};
-///
-/// let strategy = BuyAndHold::new(
-///     InstrumentId::new("NIFTY50", Exchange::new("NSE")),
-///     75.0,
-/// );
-/// let adapter = StrategyAdapter::new(strategy);
-/// let mut engine = Engine::new();
-/// engine.add_handler(adapter);
-/// ```
+/// intents stay in the context until drained ([`Self::drain_intents`]]);
+/// the runner executes them.
 pub struct StrategyAdapter<S: Strategy> {
     inner: S,
     ctx: LedgerContext,
@@ -140,40 +124,5 @@ impl<S: Strategy> StrategyAdapter<S> {
     /// Consumes the adapter, returning the wrapped strategy.
     pub fn into_inner(self) -> S {
         self.inner
-    }
-}
-
-impl<S: Strategy> Handler for StrategyAdapter<S> {
-    fn on_start(&mut self) -> Result<()> {
-        self.inner.on_start(&mut self.ctx)?;
-        Ok(())
-    }
-
-    fn on_event(
-        &mut self,
-        event: &Event,
-        ts_init: UnixNanos,
-    ) -> Result<honba_engine::EngineOutput> {
-        self.ctx.set_now(ts_init);
-        match event {
-            Event::Bar(b) => {
-                self.inner.on_bar(&mut self.ctx, b)?;
-                Ok(honba_engine::EngineOutput::None)
-            }
-            Event::Quote(q) => {
-                self.inner.on_quote(&mut self.ctx, q)?;
-                Ok(honba_engine::EngineOutput::None)
-            }
-            Event::Trade(t) => {
-                self.inner.on_trade(&mut self.ctx, t)?;
-                Ok(honba_engine::EngineOutput::None)
-            }
-            _ => Ok(honba_engine::EngineOutput::None),
-        }
-    }
-
-    fn on_stop(&mut self) -> Result<()> {
-        self.inner.on_stop(&mut self.ctx)?;
-        Ok(())
     }
 }

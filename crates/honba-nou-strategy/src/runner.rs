@@ -10,7 +10,7 @@ use honba_messages::{
     Event, InstrumentId, Order, OrderEvent, OrderId, OrderSide, OrderState, OrderStatus,
     TradingState, UnixNanos,
 };
-use honba_risk::{
+use honba_mon::{
     RiskCheck, RiskDecision, RiskLimits, RiskRefusal, RiskRequest, RiskStage, check_state,
 };
 

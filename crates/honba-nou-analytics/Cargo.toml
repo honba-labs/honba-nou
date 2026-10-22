@@ -11,8 +11,7 @@ description = "Performance analytics: trade stats, equity stats, risk metrics"
 name = "honba_analytics"
 
 [dependencies]
-honba-messages.workspace = true
-honba-entities.workspace = true
+honba-core.workspace = true
 schemars.workspace = true
 serde.workspace = true
 thiserror.workspace = true

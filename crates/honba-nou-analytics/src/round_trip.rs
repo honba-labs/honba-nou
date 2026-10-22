@@ -1,12 +1,11 @@
 //! A completed round-trip trade: entry and exit paired.
 
-use honba_entities::{PositionSide, Trade};
-use honba_messages::{InstrumentId, OrderSide, UnixNanos};
+use honba_core::{InstrumentId, Money, OrderSide, UnixNanos};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{AnalyticsError, Result};
 
-/// A closed position: an entry fill matched with its exit.
+/// A closed position: an entry and exit paired.
 ///
 /// Analytics operate on round trips, not raw fills. Pairing fills into round
 /// trips is the caller's job (or a dedicated module), since the matching
@@ -16,23 +15,23 @@ pub struct RoundTrip {
     /// The instrument traded.
     pub instrument_id: InstrumentId,
     /// Direction of the position.
-    pub side: PositionSide,
+    pub side: OrderSide,
     /// Quantity entered.
-    pub quantity: f64,
+    pub quantity: Money,
     /// Entry price.
-    pub entry_price: f64,
+    pub entry_price: Money,
     /// Exit price.
-    pub exit_price: f64,
+    pub exit_price: Money,
     /// Entry timestamp.
     pub entry_ts: UnixNanos,
     /// Exit timestamp.
     pub exit_ts: UnixNanos,
     /// Realized profit and loss, before fees.
-    pub gross_pnl: f64,
+    pub gross_pnl: Money,
     /// Fees paid, positive magnitude.
-    pub fees: f64,
+    pub fees: Money,
     /// Realized profit and loss, net of fees.
-    pub net_pnl: f64,
+    pub net_pnl: Money,
     /// Net PnL as a fraction of entry notional.
     pub pnl_pct: f64,
 }
