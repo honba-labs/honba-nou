@@ -9,7 +9,7 @@ members = [
   "crates/honba-nou-trader-loop",
   "crates/honba-nou-mcp",
   "crates/honba-nou-research",
-  "crates/honba-nou-odysseus",
+  "crates/honba-nou-arrakis",
 ]
 
 [workspace.package]
@@ -50,7 +50,7 @@ honba-nou-mcp         = { path = "crates/honba-nou-mcp" }
 honba-nou-prompt      = { path = "crates/honba-nou-prompt" }
 honba-nou-strategy    = { path = "crates/honba-nou-strategy" }
 honba-nou-trader-loop = { path = "crates/honba-nou-trader-loop" }
-honba-nou-odysseus    = { path = "crates/honba-nou-odysseus" }
+honba-nou-arrakis    = { path = "crates/honba-nou-arrakis" }
 honba-nou-research    = { path = "crates/honba-nou-research" }
 
 # Aliases
