@@ -1,0 +1,16 @@
+[package]
+name = "honba-nou-research"
+version = "0.1.0"
+edition = "2024"
+description = "Autonomous quantitative research loop: hypothesis generation, backtest pipeline, statistical verification, and strategy enhancement"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+chrono = { version = "0.4", features = ["serde"] }
+rust_decimal = { version = "1" }
+uuid = { version = "1", features = ["v4"] }
+sha2 = "0.10"
+futures = "0.3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+anyhow = "1"

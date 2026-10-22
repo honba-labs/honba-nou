@@ -1,0 +1,20 @@
+[package]
+name = "honba-nou-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+sha2 = "0.10"
+chrono = { workspace = true }
+honba-core = { workspace = true }
+honba-mon = { workspace = true }
+honba-nou-llm = { workspace = true }
+uuid = { workspace = true }
+bytes = "1.4"
+rand = "0.8"

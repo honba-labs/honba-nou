@@ -7,6 +7,8 @@ members = [
   "crates/honba-nou-prompt",
   "crates/honba-nou-strategy",
   "crates/honba-nou-trader-loop",
+  "crates/honba-nou-mcp",
+  "crates/honba-nou-research",
 ]
 
 [workspace.package]
@@ -43,9 +45,11 @@ honba-mon             = { path = "../honba-mon" }
 honba-nou-agent       = { path = "crates/honba-nou-agent" }
 honba-nou-analytics   = { path = "crates/honba-nou-analytics" }
 honba-nou-llm         = { path = "crates/honba-nou-llm" }
+honba-nou-mcp         = { path = "crates/honba-nou-mcp" }
 honba-nou-prompt      = { path = "crates/honba-nou-prompt" }
 honba-nou-strategy    = { path = "crates/honba-nou-strategy" }
 honba-nou-trader-loop = { path = "crates/honba-nou-trader-loop" }
+honba-nou-research    = { path = "crates/honba-nou-research" }
 
 # Aliases
 honba-analytics       = { package = "honba-nou-analytics", path = "crates/honba-nou-analytics" }
