@@ -8,10 +8,11 @@
 
 use std::collections::BTreeMap;
 
-use chrono::{DateTime, Utc};
-use honba_core::{Currency, InstrumentId, Money, OrderSide, Price, Quantity};
+use honba_core::chrono::{DateTime, Utc};
+use honba_core::{Currency, FillReport, InstrumentId, Money, OrderSide, Price, Quantity};
 use rust_decimal::Decimal;
 
+use crate::error::{Result, StrategyError};
 use crate::intent::OrderIntent;
 
 /// What a strategy may read and do. Implementations are supplied by the
@@ -44,7 +45,10 @@ pub trait StrategyContext {
 }
 
 /// Instrument metadata (lot and tick size).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+///
+/// No `Default` derive: `honba_core::InstrumentId` has no default value (an
+/// instrument always names a concrete exchange and symbol).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InstrumentInfo {
     pub id: InstrumentId,
     pub lot_size: Quantity,
@@ -80,8 +84,8 @@ pub struct LedgerContext {
 impl Default for LedgerContext {
     fn default() -> Self {
         Self {
-            now: DateTime::<Utc>::MIN,
-            cash: Money::zero(Currency::Inr),
+            now: DateTime::<Utc>::MIN_UTC,
+            cash: Money::zero_inr(),
             currency: Currency::Inr,
             positions: Default::default(),
             pending: Default::default(),
@@ -142,27 +146,32 @@ impl LedgerContext {
     /// overflow the balance is refused with an error and leaves the ledger
     /// untouched, rather than moving the position without the cash.
     pub fn apply_fill(&mut self, fill: &FillReport) -> Result<()> {
+        if fill.fee.currency != self.currency {
+            return Err(StrategyError::other(format!(
+                "fill fee currency {:?} does not match ledger currency {:?}",
+                fill.fee.currency, self.currency
+            )));
+        }
         let notional = (fill.price.0 * fill.quantity.0).min(Decimal::MAX);
-        let notional_money = Money::new(notional, self.currency);
-        let costs = fill.fee_breakdown.parse::<Decimal>().unwrap_or(Decimal::ZERO);
-        let costs_money = Money::new(costs, self.currency);
+        let costs = fill.fee.amount;
 
-        let cash = if fill.side == OrderSide::Buy {
-            self.cash - (notional_money + costs_money)?
+        let delta = if fill.side == OrderSide::Buy {
+            -(notional + costs)
         } else {
-            self.cash + (notional_money - costs_money)?
+            notional - costs
         };
+        self.cash = Money::new(self.cash.amount + delta, self.cash.currency);
+
         let signed = if fill.side == OrderSide::Buy {
-            fill.quantity
+            fill.quantity.0
         } else {
-            -fill.quantity
+            -fill.quantity.0
         };
-        self.cash = cash;
         *self
             .positions
             .entry(fill.instrument.clone())
             .or_insert(Decimal::ZERO) += signed;
-        self.reduce_pending(&fill.instrument, fill.side, fill.quantity);
+        self.reduce_pending(&fill.instrument, fill.side, fill.quantity.0);
         Ok(())
     }
 
@@ -175,7 +184,7 @@ impl LedgerContext {
         if intent.validate().is_err() {
             return;
         }
-        self.reduce_pending(&intent.instrument_id, intent.side, intent.quantity);
+        self.reduce_pending(&intent.instrument_id, intent.side, intent.quantity.0);
     }
 
     /// Releases `quantity` of the pending `side` quantity of `instrument_id`:
@@ -249,98 +258,19 @@ impl StrategyContext for LedgerContext {
                 .entry(intent.instrument_id.clone())
                 .or_default();
             if intent.side == OrderSide::Buy {
-                p.buy += intent.quantity;
+                p.buy += intent.quantity.0;
             } else {
-                p.sell += intent.quantity;
+                p.sell += intent.quantity.0;
             }
         }
         self.outbox.push(intent);
     }
 }
 
-/// A [`StrategyContext`] implementation backed directly by a [`StateCache`].
-/// This is kept for compatibility but requires honba-engine which is deprecated.
-#[cfg(feature = "engine")]
-#[derive(Debug)]
-pub struct CacheContext<'a> {
-    cache: &'a honba_engine::StateCache,
-    now: DateTime<Utc>,
-    cash: Money,
-    currency: Currency,
-    outbox: Vec<OrderIntent>,
-}
-
-#[cfg(feature = "engine")]
-impl<'a> CacheContext<'a> {
-    /// Creates a context reading from `cache` with initial `cash`.
-    pub fn new(cache: &'a honba_engine::StateCache, cash: Money) -> Self {
-        Self {
-            cache,
-            now: cache.last_ts(),
-            currency: cash.currency,
-            cash,
-            outbox: Vec::new(),
-        }
-    }
-
-    /// Sets the context clock.
-    pub fn set_now(&mut self, now: DateTime<Utc>) {
-        self.now = now;
-    }
-
-    /// The currency of this context.
-    pub fn currency(&self) -> Currency {
-        self.currency
-    }
-
-    /// Drains submitted intents.
-    pub fn drain_intents(&mut self) -> Vec<OrderIntent> {
-        std::mem::take(&mut self.outbox)
-    }
-}
-
-#[cfg(feature = "engine")]
-impl<'a> StrategyContext for CacheContext<'a> {
-    fn now(&self) -> DateTime<Utc> {
-        self.now
-    }
-
-    fn position(&self, instrument_id: &InstrumentId) -> Decimal {
-        self.cache.position(instrument_id)
-    }
-
-    fn positions(&self) -> Vec<(InstrumentId, Decimal)> {
-        let mut list: Vec<(InstrumentId, Decimal)> = self
-            .cache
-            .positions()
-            .iter()
-            .filter(|(_, qty)| qty.abs() > EPSILON)
-            .map(|(k, v)| (k.clone(), *v))
-            .collect();
-        list.sort_by(|a, b| {
-            a.0.symbol()
-                .cmp(b.0.symbol())
-                .then_with(|| a.0.exchange().as_str().cmp(b.0.exchange().as_str()))
-        });
-        list
-    }
-
-    fn cash(&self) -> Money {
-        self.cash
-    }
-
-    fn busy(&self, instrument_id: &InstrumentId) -> bool {
-        self.cache
-            .open_orders()
-            .iter()
-            .any(|o| &o.instrument_id == instrument_id)
-    }
-
-    fn instrument(&self, instrument_id: &InstrumentId) -> Option<&InstrumentInfo> {
-        self.cache.instrument(instrument_id)
-    }
-
-    fn submit(&mut self, intent: OrderIntent) {
-        self.outbox.push(intent);
-    }
-}
+// A `CacheContext` implementation used to live here, backed directly by
+// `honba_engine::StateCache` behind a `#[cfg(feature = "engine")]` gate.
+// `honba-engine` has been fully removed from this crate's dependency graph
+// (see Cargo.toml) and there is no `"engine"` feature left to gate it on, so
+// that type could never be constructed; it has been deleted rather than kept
+// as permanently-dead code. `LedgerContext` is the one `StrategyContext`
+// implementation this crate provides now.

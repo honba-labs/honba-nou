@@ -1,8 +1,10 @@
 //! The `Strategy` trait and its adapter for context-driven execution.
 
-use honba_core::{Bar, FillReport, InstrumentId, OrderSide};
-use honba_core::market::Tick;
+use honba_core::chrono::{DateTime, Utc};
+use honba_core::{Bar, FillReport, MarketEvent, Tick};
+
 use crate::context::{LedgerContext, StrategyContext};
+use crate::error::Result;
 use crate::intent::{IntentError, OrderIntent};
 
 /// A trading strategy (ADR 008).
@@ -123,5 +125,33 @@ impl<S: Strategy> StrategyAdapter<S> {
     /// Consumes the adapter, returning the wrapped strategy.
     pub fn into_inner(self) -> S {
         self.inner
+    }
+
+    /// Calls [`Strategy::on_start`] with this adapter's context.
+    pub fn on_start(&mut self) -> Result<()> {
+        self.inner.on_start(&mut self.ctx)
+    }
+
+    /// Sets the context clock to `ts_init` and dispatches `event` to the
+    /// matching typed hook: a [`MarketEvent::Bar`] to [`Strategy::on_bar`],
+    /// a [`Tick::Quote`] to [`Strategy::on_quote`], a [`Tick::Ltp`] to
+    /// [`Strategy::on_trade`]. A [`Tick::Depth`] or
+    /// [`MarketEvent::ConnectorStateChanged`] reaches no hook.
+    pub fn on_event(&mut self, event: &MarketEvent, ts_init: DateTime<Utc>) -> Result<()> {
+        self.ctx.set_now(ts_init);
+        match event {
+            MarketEvent::Bar(bar) => self.inner.on_bar(&mut self.ctx, bar),
+            MarketEvent::Tick(tick) => match tick {
+                Tick::Quote { .. } => self.inner.on_quote(&mut self.ctx, tick),
+                Tick::Ltp { .. } => self.inner.on_trade(&mut self.ctx, tick),
+                Tick::Depth { .. } => Ok(()),
+            },
+            MarketEvent::ConnectorStateChanged(_) => Ok(()),
+        }
+    }
+
+    /// Calls [`Strategy::on_stop`] with this adapter's context.
+    pub fn on_stop(&mut self) -> Result<()> {
+        self.inner.on_stop(&mut self.ctx)
     }
 }

@@ -1,9 +1,9 @@
 //! Buy-and-hold reference strategy.
 
-use honba_core::{Bar, InstrumentId};
-use rust_decimal::Decimal;
+use honba_core::{Bar, InstrumentId, Quantity};
 
 use crate::context::StrategyContext;
+use crate::error::Result;
 use crate::intent::OrderIntent;
 use crate::strategy::Strategy;
 
@@ -14,23 +14,23 @@ use crate::strategy::Strategy;
 ///
 /// ```
 /// use honba_strategy::{BuyAndHold, Strategy};
-/// use honba_core::InstrumentId;
+/// use honba_core::{Exchange, InstrumentId, Quantity};
 ///
 /// let strategy = BuyAndHold::new(
-///     InstrumentId::new("NIFTY50", honba_core::Exchange::NSE),
-///     75.0,
+///     InstrumentId::new(Exchange::Nse, "NIFTY50"),
+///     Quantity::from_u64(75),
 /// );
 /// assert_eq!(strategy.name(), "buy_and_hold");
 /// ```
 pub struct BuyAndHold {
     instrument_id: InstrumentId,
-    quantity: Decimal,
+    quantity: Quantity,
     bought: bool,
 }
 
 impl BuyAndHold {
     /// Creates a buy-and-hold strategy.
-    pub fn new(instrument_id: InstrumentId, quantity: f64) -> Self {
+    pub fn new(instrument_id: InstrumentId, quantity: Quantity) -> Self {
         Self {
             instrument_id,
             quantity,
@@ -44,7 +44,7 @@ impl BuyAndHold {
     }
 
     /// Returns the order quantity.
-    pub fn quantity(&self) -> f64 {
+    pub fn quantity(&self) -> Quantity {
         self.quantity
     }
 

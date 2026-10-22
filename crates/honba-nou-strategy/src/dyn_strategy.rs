@@ -1,10 +1,9 @@
 //! A type-erased [`Strategy`], for callers that store strategies of mixed types.
 
-use honba_engine::Result;
-use honba_entities::Trade;
-use honba_messages::{Bar, QuoteTick, TradeTick};
+use honba_core::{Bar, FillReport, Tick};
 
 use crate::context::StrategyContext;
+use crate::error::Result;
 use crate::intent::{IntentError, OrderIntent};
 use crate::strategy::Strategy;
 
@@ -55,15 +54,15 @@ impl Strategy for DynStrategy {
         self.0.on_bar(ctx, bar)
     }
 
-    fn on_quote(&mut self, ctx: &mut dyn StrategyContext, quote: &QuoteTick) -> Result<()> {
+    fn on_quote(&mut self, ctx: &mut dyn StrategyContext, quote: &Tick) -> Result<()> {
         self.0.on_quote(ctx, quote)
     }
 
-    fn on_trade(&mut self, ctx: &mut dyn StrategyContext, trade: &TradeTick) -> Result<()> {
+    fn on_trade(&mut self, ctx: &mut dyn StrategyContext, trade: &Tick) -> Result<()> {
         self.0.on_trade(ctx, trade)
     }
 
-    fn on_fill(&mut self, ctx: &mut dyn StrategyContext, fill: &Trade) -> Result<()> {
+    fn on_fill(&mut self, ctx: &mut dyn StrategyContext, fill: &FillReport) -> Result<()> {
         self.0.on_fill(ctx, fill)
     }
 
