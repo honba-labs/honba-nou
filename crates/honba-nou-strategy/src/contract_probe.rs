@@ -1,13 +1,12 @@
 //! The conformance probe: a reference strategy that exercises the whole contract.
 
-use honba_engine::Result;
-use honba_entities::Trade;
-use honba_messages::{Bar, InstrumentId, OrderSide, QuoteTick, TradeTick, UnixNanos};
+use honba_core::chrono::{DateTime, Utc};
+use honba_core::{Bar, FillReport, InstrumentId, Money, OrderSide, Price, Quantity, Tick};
+use rust_decimal::Decimal;
 use serde::Serialize;
 
 use crate::context::StrategyContext;
-use honba_entities::Money;
-
+use crate::error::Result;
 use crate::intent::OrderIntent;
 use crate::strategy::Strategy;
 
@@ -17,9 +16,9 @@ pub struct Observation {
     /// The hook (`"on_start"`, `"on_bar"`, ...).
     pub hook: &'static str,
     /// [`StrategyContext::now`].
-    pub now: UnixNanos,
+    pub now: DateTime<Utc>,
     /// [`StrategyContext::position`] of the probe's instrument.
-    pub position: f64,
+    pub position: Decimal,
     /// [`StrategyContext::cash`], in minor units of the ledger currency.
     pub cash: Money,
     /// [`StrategyContext::busy`] for the probe's instrument.
@@ -49,16 +48,16 @@ pub struct Observation {
 ///
 /// ```
 /// use honba_strategy::{ContractProbe, Strategy};
-/// use honba_messages::{InstrumentId, Exchange};
+/// use honba_core::{Exchange, InstrumentId};
 ///
-/// let probe = ContractProbe::new(InstrumentId::new("NIFTY50", Exchange::new("NSE")));
+/// let probe = ContractProbe::new(InstrumentId::new(Exchange::Nse, "NIFTY50"));
 /// assert_eq!(probe.name(), "contract_probe");
 /// assert!(probe.observations().is_empty());
 /// ```
 pub struct ContractProbe {
     instrument_id: InstrumentId,
     observations: Vec<Observation>,
-    last_close: Option<f64>,
+    last_close: Option<Price>,
     protected: bool,
 }
 
@@ -78,14 +77,14 @@ impl ContractProbe {
         &self.observations
     }
 
-    fn lot(&self, ctx: &dyn StrategyContext) -> f64 {
+    fn lot(&self, ctx: &dyn StrategyContext) -> Quantity {
         ctx.instrument(&self.instrument_id)
-            .map_or(1.0, |i| i.lot_size())
+            .map_or(Quantity::from_u64(1), |i| i.lot_size)
     }
 
-    fn tick(&self, ctx: &dyn StrategyContext) -> f64 {
+    fn tick(&self, ctx: &dyn StrategyContext) -> Price {
         ctx.instrument(&self.instrument_id)
-            .map_or(0.01, |i| i.tick_size())
+            .map_or(Price::new(Decimal::new(1, 2)), |i| i.tick_size)
     }
 
     fn observe(&mut self, ctx: &dyn StrategyContext, hook: &'static str) {
@@ -114,66 +113,79 @@ impl Strategy for ContractProbe {
 
     fn on_bar(&mut self, ctx: &mut dyn StrategyContext, bar: &Bar) -> Result<()> {
         self.observe(ctx, "on_bar");
-        let prev = self.last_close.replace(bar.close());
+        let prev = self.last_close.replace(bar.close);
         if ctx.busy(&self.instrument_id) {
             return Ok(());
         }
         let pos = ctx.position(&self.instrument_id);
-        if pos == 0.0 {
+        if pos.is_zero() {
             let lot = self.lot(ctx);
             ctx.submit(OrderIntent::market_buy(self.instrument_id.clone(), lot));
-        } else if pos > 0.0 && prev.is_some_and(|p| bar.close() < p) {
-            ctx.submit(OrderIntent::market_sell(self.instrument_id.clone(), pos));
-        }
-        Ok(())
-    }
-
-    fn on_quote(&mut self, ctx: &mut dyn StrategyContext, quote: &QuoteTick) -> Result<()> {
-        self.observe(ctx, "on_quote");
-        if !ctx.busy(&self.instrument_id) && ctx.position(&self.instrument_id) > 0.0 {
-            let lot = self.lot(ctx);
-            ctx.submit(OrderIntent::limit_sell(
+        } else if pos > Decimal::ZERO && prev.is_some_and(|p| bar.close < p) {
+            ctx.submit(OrderIntent::market_sell(
                 self.instrument_id.clone(),
-                lot,
-                quote.ask_price(),
+                Quantity::new(pos),
             ));
         }
         Ok(())
     }
 
-    fn on_trade(&mut self, ctx: &mut dyn StrategyContext, trade: &TradeTick) -> Result<()> {
+    fn on_quote(&mut self, ctx: &mut dyn StrategyContext, quote: &Tick) -> Result<()> {
+        self.observe(ctx, "on_quote");
+        let Tick::Quote { ask, .. } = quote else {
+            return Ok(());
+        };
+        if !ctx.busy(&self.instrument_id) && ctx.position(&self.instrument_id) > Decimal::ZERO {
+            let lot = self.lot(ctx);
+            ctx.submit(OrderIntent::limit_sell(
+                self.instrument_id.clone(),
+                lot,
+                *ask,
+            ));
+        }
+        Ok(())
+    }
+
+    fn on_trade(&mut self, ctx: &mut dyn StrategyContext, trade: &Tick) -> Result<()> {
         self.observe(ctx, "on_trade");
         if ctx.busy(&self.instrument_id) {
             return Ok(());
         }
+        let Some(price) = trade.last_price() else {
+            return Ok(());
+        };
         let (pos, lot, tick) = (
             ctx.position(&self.instrument_id),
             self.lot(ctx),
             self.tick(ctx),
         );
         let id = self.instrument_id.clone();
-        if pos == 0.0 {
-            ctx.submit(OrderIntent::stop_buy(id, lot, trade.price() + tick));
-        } else if pos > 0.0 {
-            ctx.submit(OrderIntent::stop_limit_sell(
+        if pos.is_zero() {
+            ctx.submit(OrderIntent::stop_buy(
                 id,
                 lot,
-                trade.price() - tick,
-                trade.price() - 2.0 * tick,
+                Price::new(price.0 + tick.0),
+            ));
+        } else if pos > Decimal::ZERO {
+            ctx.submit(OrderIntent::stop_limit_sell(
+                id,
+                Quantity::new(pos),
+                Price::new(price.0 - tick.0),
+                Price::new(price.0 - tick.0 * Decimal::from(2)),
             ));
         }
         Ok(())
     }
 
-    fn on_fill(&mut self, ctx: &mut dyn StrategyContext, fill: &Trade) -> Result<()> {
+    fn on_fill(&mut self, ctx: &mut dyn StrategyContext, fill: &FillReport) -> Result<()> {
         self.observe(ctx, "on_fill");
-        if !self.protected && fill.side() == OrderSide::Buy {
+        if !self.protected && fill.side == OrderSide::Buy {
             self.protected = true;
             let tick = self.tick(ctx);
             ctx.submit(OrderIntent::stop_sell(
                 self.instrument_id.clone(),
-                fill.quantity(),
-                fill.price() - 10.0 * tick,
+                fill.quantity,
+                Price::new(fill.price.0 - tick.0 * Decimal::from(10)),
             ));
         }
         Ok(())
@@ -182,8 +194,11 @@ impl Strategy for ContractProbe {
     fn on_stop(&mut self, ctx: &mut dyn StrategyContext) -> Result<()> {
         self.observe(ctx, "on_stop");
         let pos = ctx.position(&self.instrument_id);
-        if pos > 0.0 {
-            ctx.submit(OrderIntent::market_sell(self.instrument_id.clone(), pos));
+        if pos > Decimal::ZERO {
+            ctx.submit(OrderIntent::market_sell(
+                self.instrument_id.clone(),
+                Quantity::new(pos),
+            ));
         }
         Ok(())
     }

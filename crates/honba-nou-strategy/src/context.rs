@@ -50,8 +50,11 @@ pub trait StrategyContext {
 /// instrument always names a concrete exchange and symbol).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InstrumentInfo {
+    /// The instrument this metadata describes.
     pub id: InstrumentId,
+    /// The exchange-mandated lot size (orders must be a multiple of this).
     pub lot_size: Quantity,
+    /// The exchange-mandated minimum price increment.
     pub tick_size: Price,
 }
 
