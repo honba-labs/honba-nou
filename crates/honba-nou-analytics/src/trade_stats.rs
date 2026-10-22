@@ -1,5 +1,6 @@
 //! Aggregate statistics over a set of round trips.
 
+use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{AnalyticsError, Result};
@@ -59,14 +60,16 @@ impl TradeStats {
         let mut total_fees = 0.0f64;
 
         for t in trades {
-            total_pnl += t.net_pnl;
-            total_fees += t.fees;
-            if t.net_pnl > 0.0 {
+            let net_pnl_f64 = t.net_pnl.to_f64().unwrap_or(0.0);
+            let fees_f64 = t.fees.to_f64().unwrap_or(0.0);
+            total_pnl += net_pnl_f64;
+            total_fees += fees_f64;
+            if net_pnl_f64 > 0.0 {
                 n_wins += 1;
-                gross_profit += t.net_pnl;
-            } else if t.net_pnl < 0.0 {
+                gross_profit += net_pnl_f64;
+            } else if net_pnl_f64 < 0.0 {
                 n_losses += 1;
-                gross_loss += -t.net_pnl;
+                gross_loss += -net_pnl_f64;
             } else {
                 n_flat += 1;
             }

@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use honba_core::{Decision, InstrumentId, OrderRequest, OrderSide, OrderType};
+use honba_core::{Decision, Exchange, InstrumentId, OrderRequest, OrderSide, OrderType};
 
 use crate::audit::{LlmRecord, LlmTrailLogger, sha256_hex};
 use crate::error::ReplayError;
@@ -147,53 +147,47 @@ impl PromptReplayer {
     /// Map a domain [`Decision`] into canonical [`OrderRequest`]s.
     pub fn decision_to_orders(decision: &Decision, fallback_algo_id: &str) -> Vec<OrderRequest> {
         match decision {
-            Decision::Buy {
+            Decision::PlaceOrder {
                 symbol,
-                exchange,
+                side,
                 qty,
                 price_limit,
                 algo_id,
                 ..
             } => {
-                let inst = InstrumentId::new(*exchange, symbol.clone());
-                let aid = if algo_id.trim().is_empty() {
-                    fallback_algo_id.to_string()
-                } else {
-                    algo_id.clone()
-                };
+                if *side == OrderSide::Buy {
+                    let inst = InstrumentId::new(Exchange::Nse, symbol.clone());
+                    let aid = if algo_id.trim().is_empty() {
+                        fallback_algo_id.to_string()
+                    } else {
+                        algo_id.clone()
+                    };
 
-                let order_type = match price_limit {
-                    Some(limit) => OrderType::Limit(*limit),
-                    None => OrderType::Market,
-                };
-                let mut order = OrderRequest::new(inst, OrderSide::Buy, order_type, *qty, aid);
-                order.tag = Some("replay_buy".into());
-                vec![order]
-            }
-            Decision::Sell {
-                symbol,
-                exchange,
-                qty,
-                price_limit,
-                algo_id,
-                ..
-            } => {
-                let inst = InstrumentId::new(*exchange, symbol.clone());
-                let aid = if algo_id.trim().is_empty() {
-                    fallback_algo_id.to_string()
+                    let order_type = match price_limit {
+                        Some(limit) => OrderType::Limit(*limit),
+                        None => OrderType::Market,
+                    };
+                    let mut order = OrderRequest::new(inst, OrderSide::Buy, order_type, *qty, aid);
+                    order.tag = Some("replay_buy".into());
+                    vec![order]
                 } else {
-                    algo_id.clone()
-                };
+                    let inst = InstrumentId::new(Exchange::Nse, symbol.clone());
+                    let aid = if algo_id.trim().is_empty() {
+                        fallback_algo_id.to_string()
+                    } else {
+                        algo_id.clone()
+                    };
 
-                let order_type = match price_limit {
-                    Some(limit) => OrderType::Limit(*limit),
-                    None => OrderType::Market,
-                };
-                let mut order = OrderRequest::new(inst, OrderSide::Sell, order_type, *qty, aid);
-                order.tag = Some("replay_sell".into());
-                vec![order]
+                    let order_type = match price_limit {
+                        Some(limit) => OrderType::Limit(*limit),
+                        None => OrderType::Market,
+                    };
+                    let mut order = OrderRequest::new(inst, OrderSide::Sell, order_type, *qty, aid);
+                    order.tag = Some("replay_sell".into());
+                    vec![order]
+                }
             }
-            Decision::Hold { .. } | Decision::CancelAll { .. } => Vec::new(),
+            Decision::ModifyOrder { .. } | Decision::CancelOrder { .. } | Decision::Hold { .. } | Decision::CancelAll { .. } => Vec::new(),
         }
     }
 }

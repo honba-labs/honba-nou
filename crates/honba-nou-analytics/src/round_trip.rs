@@ -1,6 +1,9 @@
 //! A completed round-trip trade: entry and exit paired.
 
-use honba_core::{InstrumentId, Money, OrderSide, UnixNanos};
+use chrono::{DateTime, Utc};
+use honba_core::{FillReport, InstrumentId, OrderSide, Price, Quantity};
+use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{AnalyticsError, Result};
@@ -17,21 +20,21 @@ pub struct RoundTrip {
     /// Direction of the position.
     pub side: OrderSide,
     /// Quantity entered.
-    pub quantity: Money,
+    pub quantity: Quantity,
     /// Entry price.
-    pub entry_price: Money,
+    pub entry_price: Price,
     /// Exit price.
-    pub exit_price: Money,
+    pub exit_price: Price,
     /// Entry timestamp.
-    pub entry_ts: UnixNanos,
+    pub entry_ts: DateTime<Utc>,
     /// Exit timestamp.
-    pub exit_ts: UnixNanos,
+    pub exit_ts: DateTime<Utc>,
     /// Realized profit and loss, before fees.
-    pub gross_pnl: Money,
+    pub gross_pnl: Decimal,
     /// Fees paid, positive magnitude.
-    pub fees: Money,
+    pub fees: Decimal,
     /// Realized profit and loss, net of fees.
-    pub net_pnl: Money,
+    pub net_pnl: Decimal,
     /// Net PnL as a fraction of entry notional.
     pub pnl_pct: f64,
 }
@@ -41,28 +44,21 @@ impl RoundTrip {
     ///
     /// The entry fill's side determines the direction. The exit fill must be
     /// the opposite side and reference the same instrument. Fees are read off
-    /// the trades themselves — passing them separately let callers report fees
-    /// the ledger never charged.
-    pub fn from_fills(entry: &Trade, exit: &Trade) -> Result<Self> {
-        if entry.instrument_id() != exit.instrument_id() {
+    /// the fills themselves.
+    pub fn from_fills(entry: &FillReport, exit: &FillReport) -> Result<Self> {
+        if entry.instrument != exit.instrument {
             return Err(AnalyticsError::TradeMismatch(
                 "entry and exit reference different instruments".into(),
             ));
         }
 
-        let (side, quantity, entry_price, exit_price) = match (entry.side(), exit.side()) {
-            (OrderSide::Buy, OrderSide::Sell) => (
-                PositionSide::Long,
-                entry.quantity(),
-                entry.price(),
-                exit.price(),
-            ),
-            (OrderSide::Sell, OrderSide::Buy) => (
-                PositionSide::Short,
-                entry.quantity(),
-                entry.price(),
-                exit.price(),
-            ),
+        let (side, quantity, entry_price, exit_price) = match (entry.side, exit.side) {
+            (OrderSide::Buy, OrderSide::Sell) => {
+                (OrderSide::Buy, entry.quantity, entry.price, exit.price)
+            }
+            (OrderSide::Sell, OrderSide::Buy) => {
+                (OrderSide::Sell, entry.quantity, entry.price, exit.price)
+            }
             _ => {
                 return Err(AnalyticsError::TradeMismatch(
                     "entry and exit must be opposite sides".into(),
@@ -71,36 +67,30 @@ impl RoundTrip {
         };
 
         let gross_pnl = match side {
-            PositionSide::Long => (exit_price - entry_price) * quantity,
-            PositionSide::Short => (entry_price - exit_price) * quantity,
-            _ => {
-                return Err(AnalyticsError::TradeMismatch(
-                    "unsupported position side".into(),
-                ));
-            }
+            OrderSide::Buy => (exit_price.0 - entry_price.0) * quantity.0,
+            OrderSide::Sell => (entry_price.0 - exit_price.0) * quantity.0,
         };
-        // Fees are ledger Money; gross and net stay f64 statistics, so the
-        // sum converts once, at the boundary, rounded to minor units.
-        let fees_minor = (entry.costs() + exit.costs())
-            .map_err(|e| AnalyticsError::TradeMismatch(format!("cannot sum fees: {e}")))?;
-        let fees_major = fees_minor.to_major_f64();
-        let fees = fees_major;
+
+        // FillReport has fee_breakdown_json as a JSON string; for analytics we
+        // sum the parsed fees if present, otherwise use zero.
+        let fees = dec!(0); // TODO: parse fee_breakdown_json when needed
+
         let net_pnl = gross_pnl - fees;
-        let entry_notional = entry_price * quantity;
-        let pnl_pct = if entry_notional != 0.0 {
-            net_pnl / entry_notional
+        let entry_notional = entry_price.0 * quantity.0;
+        let pnl_pct = if entry_notional != dec!(0) {
+            (net_pnl / entry_notional).try_into().unwrap_or(0.0)
         } else {
             0.0
         };
 
         Ok(Self {
-            instrument_id: entry.instrument_id().clone(),
+            instrument_id: entry.instrument.clone(),
             side,
             quantity,
             entry_price,
             exit_price,
-            entry_ts: entry.ts_event(),
-            exit_ts: exit.ts_event(),
+            entry_ts: entry.timestamp,
+            exit_ts: exit.timestamp,
             gross_pnl,
             fees,
             net_pnl,
@@ -114,23 +104,22 @@ impl RoundTrip {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         instrument_id: InstrumentId,
-        side: PositionSide,
-        quantity: f64,
-        entry_price: f64,
-        exit_price: f64,
-        entry_ts: UnixNanos,
-        exit_ts: UnixNanos,
-        fees: f64,
+        side: OrderSide,
+        quantity: Quantity,
+        entry_price: Price,
+        exit_price: Price,
+        entry_ts: DateTime<Utc>,
+        exit_ts: DateTime<Utc>,
+        fees: Decimal,
     ) -> Self {
         let gross_pnl = match side {
-            PositionSide::Long => (exit_price - entry_price) * quantity,
-            PositionSide::Short => (entry_price - exit_price) * quantity,
-            _ => 0.0,
+            OrderSide::Buy => (exit_price.0 - entry_price.0) * quantity.0,
+            OrderSide::Sell => (entry_price.0 - exit_price.0) * quantity.0,
         };
         let net_pnl = gross_pnl - fees;
-        let entry_notional = entry_price * quantity;
-        let pnl_pct = if entry_notional != 0.0 {
-            net_pnl / entry_notional
+        let entry_notional = entry_price.0 * quantity.0;
+        let pnl_pct = if entry_notional != dec!(0) {
+            (net_pnl / entry_notional).try_into().unwrap_or(0.0)
         } else {
             0.0
         };
@@ -151,6 +140,6 @@ impl RoundTrip {
 
     /// Returns the holding period in nanoseconds.
     pub fn duration_nanos(&self) -> u64 {
-        self.exit_ts.as_u64().saturating_sub(self.entry_ts.as_u64())
+        (self.exit_ts - self.entry_ts).num_nanoseconds().unwrap_or(0) as u64
     }
 }

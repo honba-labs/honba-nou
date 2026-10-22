@@ -11,16 +11,17 @@ description = "Strategy trait and reference strategies for Honba"
 name = "honba_strategy"
 
 [dependencies]
-honba-core = { path = "../../../honba-core" }
-honba-mon = { path = "../../../honba-mon" }
-honba-indicators = { package = "honba-me-indicators", path = "../../../honba-me/crates/honba-me-indicators" }
-serde = { workspace = true }
-serde_json = { workspace = true }
-schemars = { workspace = true }
+honba-core.workspace = true
+honba-mon.workspace = true
+honba-indicators.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+rust_decimal.workspace = true
 
 [dev-dependencies]
 chrono.workspace = true
 serde_json.workspace = true
-honba-testing.workspace = true
-honba-feed.workspace = true
-honba-market.workspace = true
+honba-ya-testing.workspace = true
+honba-me-feed.workspace = true
+honba-me-market.workspace = true

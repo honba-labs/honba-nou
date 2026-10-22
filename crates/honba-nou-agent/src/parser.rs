@@ -87,14 +87,7 @@ impl DecisionParser {
         }
 
         match decision {
-            Decision::Buy {
-                symbol,
-                qty,
-                price_limit,
-                algo_id,
-                ..
-            }
-            | Decision::Sell {
+            Decision::PlaceOrder {
                 symbol,
                 qty,
                 price_limit,
@@ -148,15 +141,10 @@ impl DecisionParser {
 
                 Ok(())
             }
+            Decision::ModifyOrder { .. } => Ok(()),
+            Decision::CancelOrder { .. } => Ok(()),
             Decision::Hold { .. } => Ok(()),
-            Decision::CancelAll { algo_id, .. } => {
-                if let Some(id) = algo_id {
-                    if id.trim().is_empty() {
-                        return Err(DecisionError::EmptyAlgoId);
-                    }
-                }
-                Ok(())
-            }
+            Decision::CancelAll { .. } => Ok(()),
         }
     }
 

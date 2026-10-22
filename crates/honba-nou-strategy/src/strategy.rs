@@ -1,8 +1,7 @@
 //! The `Strategy` trait and its adapter for context-driven execution.
 
-use honba_core::{Bar, Event, InstrumentId, QuoteTick, Trade, TradeTick, UnixNanos, OrderSide};
-use anyhow::Result;
-
+use honba_core::{Bar, FillReport, InstrumentId, OrderSide};
+use honba_core::market::Tick;
 use crate::context::{LedgerContext, StrategyContext};
 use crate::intent::{IntentError, OrderIntent};
 
@@ -32,21 +31,21 @@ pub trait Strategy: Send + 'static {
         Ok(())
     }
 
-    /// Called for every [`QuoteTick`] event.
-    fn on_quote(&mut self, _ctx: &mut dyn StrategyContext, _quote: &QuoteTick) -> Result<()> {
+    /// Called for every [`Tick::Quote`] event.
+    fn on_quote(&mut self, _ctx: &mut dyn StrategyContext, _quote: &Tick) -> Result<()> {
         Ok(())
     }
 
-    /// Called for every [`TradeTick`] event (a market print; the strategy's
+    /// Called for every [`Tick::Ltp`] event (a market print; the strategy's
     /// own executions arrive in [`Strategy::on_fill`]).
-    fn on_trade(&mut self, _ctx: &mut dyn StrategyContext, _trade: &TradeTick) -> Result<()> {
+    fn on_trade(&mut self, _ctx: &mut dyn StrategyContext, _trade: &Tick) -> Result<()> {
         Ok(())
     }
 
     /// Called for each fill of an order the strategy submitted, after the
     /// fill is booked in the context. Intents submitted here are processed
     /// with the next event.
-    fn on_fill(&mut self, _ctx: &mut dyn StrategyContext, _fill: &Trade) -> Result<()> {
+    fn on_fill(&mut self, _ctx: &mut dyn StrategyContext, _fill: &FillReport) -> Result<()> {
         Ok(())
     }
 
@@ -72,8 +71,8 @@ pub trait Strategy: Send + 'static {
 /// Wraps a [`Strategy`] and its [`LedgerContext`] for context-driven execution.
 ///
 /// The adapter sets the context clock to each event's `ts_init` and
-/// translates [`Event`] variants into the strategy's typed hooks. Submitted
-/// intents stay in the context until drained ([`Self::drain_intents`]]);
+/// translates event variants into the strategy's typed hooks. Submitted
+/// intents stay in the context until drained ([`Self::drain_intents`]);
 /// the runner executes them.
 pub struct StrategyAdapter<S: Strategy> {
     inner: S,

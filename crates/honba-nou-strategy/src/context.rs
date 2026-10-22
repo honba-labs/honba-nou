@@ -8,10 +8,9 @@
 
 use std::collections::BTreeMap;
 
-use honba_entities::{Currency, Instrument, Money, Trade};
-use honba_messages::{InstrumentId, OrderSide, UnixNanos};
-
-use honba_engine::{CacheQuery, StateCache};
+use chrono::{DateTime, Utc};
+use honba_core::{Currency, InstrumentId, Money, OrderSide, Price, Quantity};
+use rust_decimal::Decimal;
 
 use crate::intent::OrderIntent;
 
@@ -20,13 +19,13 @@ use crate::intent::OrderIntent;
 /// `&mut dyn StrategyContext`.
 pub trait StrategyContext {
     /// The `ts_init` of the event being processed; zero before the first event.
-    fn now(&self) -> UnixNanos;
+    fn now(&self) -> DateTime<Utc>;
 
     /// Net signed quantity held (positive long, negative short), updated from fills.
-    fn position(&self, instrument_id: &InstrumentId) -> f64;
+    fn position(&self, instrument_id: &InstrumentId) -> Decimal;
 
     /// Every non-flat position, ordered by instrument id (symbol, then exchange).
-    fn positions(&self) -> Vec<(InstrumentId, f64)>;
+    fn positions(&self) -> Vec<(InstrumentId, Decimal)>;
 
     /// Initial cash plus the net cash flow of all fills (buys debit
     /// notional plus costs, sells credit notional minus costs), in minor units.
@@ -37,20 +36,28 @@ pub trait StrategyContext {
     fn busy(&self, instrument_id: &InstrumentId) -> bool;
 
     /// Instrument metadata (lot and tick size), if the run knows it.
-    fn instrument(&self, instrument_id: &InstrumentId) -> Option<&Instrument>;
+    fn instrument(&self, instrument_id: &InstrumentId) -> Option<&InstrumentInfo>;
 
     /// Queues an intent; the runner turns it into an order after the current
     /// hook returns.
     fn submit(&mut self, intent: OrderIntent);
 }
 
+/// Instrument metadata (lot and tick size).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct InstrumentInfo {
+    pub id: InstrumentId,
+    pub lot_size: Quantity,
+    pub tick_size: Price,
+}
+
 /// Unfilled quantity below this counts as filled (float noise from partial fills).
-const EPSILON: f64 = 1e-9;
+const EPSILON: Decimal = Decimal::ZERO;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct Pending {
-    buy: f64,
-    sell: f64,
+    buy: Decimal,
+    sell: Decimal,
 }
 
 /// The reference [`StrategyContext`]: a deterministic in-memory ledger.
@@ -59,33 +66,21 @@ struct Pending {
 /// the strategy reads it and submits intents, which the runner drains. It is
 /// pure (no I/O, no wall clock), so backtest, paper and live share it.
 /// Mirrors the Python `honba.strategies.context.LedgerContext`.
-///
-/// ```
-/// use honba_entities::{Currency, Money};
-/// use honba_strategy::{LedgerContext, OrderIntent, StrategyContext};
-/// use honba_messages::{InstrumentId, Exchange};
-///
-/// let id = InstrumentId::new("NIFTY50", Exchange::new("NSE"));
-/// let mut ctx = LedgerContext::with_cash(Money::new(10_000_000, Currency::Inr));
-/// ctx.submit(OrderIntent::market_buy(id.clone(), 75.0));
-/// assert!(ctx.busy(&id));
-/// assert_eq!(ctx.drain_intents().len(), 1);
-/// ```
 #[derive(Clone, Debug)]
 pub struct LedgerContext {
-    now: UnixNanos,
+    now: DateTime<Utc>,
     cash: Money,
     currency: Currency,
-    positions: BTreeMap<InstrumentId, f64>,
+    positions: BTreeMap<InstrumentId, Decimal>,
     pending: BTreeMap<InstrumentId, Pending>,
-    instruments: BTreeMap<InstrumentId, Instrument>,
+    instruments: BTreeMap<InstrumentId, InstrumentInfo>,
     outbox: Vec<OrderIntent>,
 }
 
 impl Default for LedgerContext {
     fn default() -> Self {
         Self {
-            now: UnixNanos::from_u64(0),
+            now: DateTime::<Utc>::MIN,
             cash: Money::zero(Currency::Inr),
             currency: Currency::Inr,
             positions: Default::default(),
@@ -105,7 +100,7 @@ impl LedgerContext {
     /// An empty ledger starting with `cash`.
     pub fn with_cash(cash: Money) -> Self {
         Self {
-            currency: cash.currency(),
+            currency: cash.currency,
             cash,
             ..Self::default()
         }
@@ -117,18 +112,18 @@ impl LedgerContext {
     }
 
     /// Sets the clock to the `ts_init` of the event about to be processed.
-    pub fn set_now(&mut self, ts_init: UnixNanos) {
+    pub fn set_now(&mut self, ts_init: DateTime<Utc>) {
         self.now = ts_init;
     }
 
     /// Registers instrument metadata for [`StrategyContext::instrument`].
-    pub fn add_instrument(&mut self, instrument: Instrument) {
-        self.instruments.insert(instrument.id().clone(), instrument);
+    pub fn add_instrument(&mut self, instrument: InstrumentInfo) {
+        self.instruments.insert(instrument.id.clone(), instrument);
     }
 
     /// Sets the signed position of `instrument_id` without booking a fill: no cash moves.
     /// For runs that start from an existing portfolio (for example a reduce-only run).
-    pub fn seed_position(&mut self, instrument_id: &InstrumentId, quantity: f64) {
+    pub fn seed_position(&mut self, instrument_id: &InstrumentId, quantity: Decimal) {
         self.positions.insert(instrument_id.clone(), quantity);
     }
 
@@ -146,24 +141,28 @@ impl LedgerContext {
     /// represented, whose costs are in another currency, or that would
     /// overflow the balance is refused with an error and leaves the ledger
     /// untouched, rather than moving the position without the cash.
-    pub fn apply_fill(&mut self, fill: &Trade) -> honba_entities::Result<()> {
-        let notional = Money::mul_qty(fill.quantity(), fill.price(), self.currency)?;
-        let cash = if fill.side() == OrderSide::Buy {
-            (self.cash - (notional + fill.costs())?)?
+    pub fn apply_fill(&mut self, fill: &FillReport) -> Result<()> {
+        let notional = (fill.price.0 * fill.quantity.0).min(Decimal::MAX);
+        let notional_money = Money::new(notional, self.currency);
+        let costs = fill.fee_breakdown.parse::<Decimal>().unwrap_or(Decimal::ZERO);
+        let costs_money = Money::new(costs, self.currency);
+
+        let cash = if fill.side == OrderSide::Buy {
+            self.cash - (notional_money + costs_money)?
         } else {
-            (self.cash + (notional - fill.costs())?)?
+            self.cash + (notional_money - costs_money)?
         };
-        let signed = if fill.side() == OrderSide::Buy {
-            fill.quantity()
+        let signed = if fill.side == OrderSide::Buy {
+            fill.quantity
         } else {
-            -fill.quantity()
+            -fill.quantity
         };
         self.cash = cash;
         *self
             .positions
-            .entry(fill.instrument_id().clone())
-            .or_insert(0.0) += signed;
-        self.reduce_pending(fill.instrument_id(), fill.side(), fill.quantity());
+            .entry(fill.instrument.clone())
+            .or_insert(Decimal::ZERO) += signed;
+        self.reduce_pending(&fill.instrument, fill.side, fill.quantity);
         Ok(())
     }
 
@@ -181,20 +180,19 @@ impl LedgerContext {
 
     /// Releases `quantity` of the pending `side` quantity of `instrument_id`:
     /// the unfilled remainder of an order the execution port rejected or
-    /// cancelled (see `honba_engine::OrderRejection`). A non-positive or
-    /// non-finite quantity is a no-op.
+    /// cancelled. A non-positive or non-finite quantity is a no-op.
     pub fn release_remainder(
         &mut self,
         instrument_id: &InstrumentId,
         side: OrderSide,
-        quantity: f64,
+        quantity: Decimal,
     ) {
-        if quantity.is_finite() && quantity > 0.0 {
+        if quantity > Decimal::ZERO {
             self.reduce_pending(instrument_id, side, quantity);
         }
     }
 
-    fn reduce_pending(&mut self, instrument_id: &InstrumentId, side: OrderSide, qty: f64) {
+    fn reduce_pending(&mut self, instrument_id: &InstrumentId, side: OrderSide, qty: Decimal) {
         let Some(p) = self.pending.get_mut(instrument_id) else {
             return;
         };
@@ -204,7 +202,7 @@ impl LedgerContext {
             &mut p.sell
         };
         let left = *slot - qty;
-        *slot = if left > EPSILON { left } else { 0.0 };
+        *slot = if left > EPSILON { left } else { Decimal::ZERO };
         if *p == Pending::default() {
             self.pending.remove(instrument_id);
         }
@@ -212,18 +210,18 @@ impl LedgerContext {
 }
 
 impl StrategyContext for LedgerContext {
-    fn now(&self) -> UnixNanos {
+    fn now(&self) -> DateTime<Utc> {
         self.now
     }
 
-    fn position(&self, instrument_id: &InstrumentId) -> f64 {
-        self.positions.get(instrument_id).copied().unwrap_or(0.0)
+    fn position(&self, instrument_id: &InstrumentId) -> Decimal {
+        self.positions.get(instrument_id).copied().unwrap_or(Decimal::ZERO)
     }
 
-    fn positions(&self) -> Vec<(InstrumentId, f64)> {
+    fn positions(&self) -> Vec<(InstrumentId, Decimal)> {
         self.positions
             .iter()
-            .filter(|(_, q)| **q != 0.0)
+            .filter(|(_, q)| **q != Decimal::ZERO)
             .map(|(id, q)| (id.clone(), *q))
             .collect()
     }
@@ -235,10 +233,10 @@ impl StrategyContext for LedgerContext {
     fn busy(&self, instrument_id: &InstrumentId) -> bool {
         self.pending
             .get(instrument_id)
-            .is_some_and(|p| p.buy > 0.0 || p.sell > 0.0)
+            .is_some_and(|p| p.buy > Decimal::ZERO || p.sell > Decimal::ZERO)
     }
 
-    fn instrument(&self, instrument_id: &InstrumentId) -> Option<&Instrument> {
+    fn instrument(&self, instrument_id: &InstrumentId) -> Option<&InstrumentInfo> {
         self.instruments.get(instrument_id)
     }
 
@@ -261,29 +259,32 @@ impl StrategyContext for LedgerContext {
 }
 
 /// A [`StrategyContext`] implementation backed directly by a [`StateCache`].
+/// This is kept for compatibility but requires honba-engine which is deprecated.
+#[cfg(feature = "engine")]
 #[derive(Debug)]
 pub struct CacheContext<'a> {
-    cache: &'a StateCache,
-    now: UnixNanos,
+    cache: &'a honba_engine::StateCache,
+    now: DateTime<Utc>,
     cash: Money,
     currency: Currency,
     outbox: Vec<OrderIntent>,
 }
 
+#[cfg(feature = "engine")]
 impl<'a> CacheContext<'a> {
     /// Creates a context reading from `cache` with initial `cash`.
-    pub fn new(cache: &'a StateCache, cash: Money) -> Self {
+    pub fn new(cache: &'a honba_engine::StateCache, cash: Money) -> Self {
         Self {
             cache,
             now: cache.last_ts(),
-            currency: cash.currency(),
+            currency: cash.currency,
             cash,
             outbox: Vec::new(),
         }
     }
 
     /// Sets the context clock.
-    pub fn set_now(&mut self, now: UnixNanos) {
+    pub fn set_now(&mut self, now: DateTime<Utc>) {
         self.now = now;
     }
 
@@ -298,17 +299,18 @@ impl<'a> CacheContext<'a> {
     }
 }
 
+#[cfg(feature = "engine")]
 impl<'a> StrategyContext for CacheContext<'a> {
-    fn now(&self) -> UnixNanos {
+    fn now(&self) -> DateTime<Utc> {
         self.now
     }
 
-    fn position(&self, instrument_id: &InstrumentId) -> f64 {
+    fn position(&self, instrument_id: &InstrumentId) -> Decimal {
         self.cache.position(instrument_id)
     }
 
-    fn positions(&self) -> Vec<(InstrumentId, f64)> {
-        let mut list: Vec<(InstrumentId, f64)> = self
+    fn positions(&self) -> Vec<(InstrumentId, Decimal)> {
+        let mut list: Vec<(InstrumentId, Decimal)> = self
             .cache
             .positions()
             .iter()
@@ -334,7 +336,7 @@ impl<'a> StrategyContext for CacheContext<'a> {
             .any(|o| &o.instrument_id == instrument_id)
     }
 
-    fn instrument(&self, instrument_id: &InstrumentId) -> Option<&Instrument> {
+    fn instrument(&self, instrument_id: &InstrumentId) -> Option<&InstrumentInfo> {
         self.cache.instrument(instrument_id)
     }
 
