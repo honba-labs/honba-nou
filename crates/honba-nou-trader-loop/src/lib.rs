@@ -1,6 +1,6 @@
 //! Async trader loop per strategy instance.
 use honba_nou_llm::{LlmError, LlmProvider};
-use honba_risk::RiskLimits;
+use honba_mon::RiskLimits;
 use std::sync::Arc;
 
 pub struct TraderConfig {
