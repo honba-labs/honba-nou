@@ -1,10 +1,11 @@
 //! SMA crossover strategy.
 
-use honba_engine::Result;
+use honba_core::{Bar, InstrumentId, Quantity};
 use honba_indicators::{Indicator, Sma};
-use honba_messages::{Bar, InstrumentId};
+use rust_decimal::prelude::ToPrimitive;
 
 use crate::context::StrategyContext;
+use crate::error::Result;
 use crate::intent::OrderIntent;
 use crate::strategy::Strategy;
 
@@ -23,11 +24,11 @@ pub const MAX_SMA_PERIOD: usize = 10_000;
 ///
 /// ```
 /// use honba_strategy::{SmaCrossover, Strategy};
-/// use honba_messages::{InstrumentId, Exchange};
+/// use honba_core::{Exchange, InstrumentId, Quantity};
 ///
 /// let strategy = SmaCrossover::new(
-///     InstrumentId::new("NIFTY50", Exchange::new("NSE")),
-///     5, 20, 75.0,
+///     InstrumentId::new(Exchange::Nse, "NIFTY50"),
+///     5, 20, Quantity::from_u64(75),
 /// );
 /// assert_eq!(strategy.name(), "sma_crossover");
 /// ```
@@ -35,7 +36,7 @@ pub struct SmaCrossover {
     instrument_id: InstrumentId,
     fast: Sma,
     slow: Sma,
-    quantity: f64,
+    quantity: Quantity,
     prev_above: Option<bool>,
 }
 
@@ -45,7 +46,7 @@ impl SmaCrossover {
     /// # Panics
     ///
     /// Panics if `fast >= slow` or either is zero.
-    pub fn new(instrument_id: InstrumentId, fast: usize, slow: usize, quantity: f64) -> Self {
+    pub fn new(instrument_id: InstrumentId, fast: usize, slow: usize, quantity: Quantity) -> Self {
         assert!(fast > 0 && slow > 0, "SMA periods must be positive");
         assert!(fast < slow, "fast period must be less than slow period");
         Self {
@@ -74,8 +75,9 @@ impl Strategy for SmaCrossover {
     }
 
     fn on_bar(&mut self, ctx: &mut dyn StrategyContext, bar: &Bar) -> Result<()> {
-        let f = self.fast.update(bar.close());
-        let s = self.slow.update(bar.close());
+        let close = bar.close.0.to_f64().unwrap_or(0.0);
+        let f = self.fast.update(close);
+        let s = self.slow.update(close);
 
         if let (Some(f), Some(s)) = (f, s) {
             let above = f > s;

@@ -14,7 +14,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use honba_messages::{InstrumentId, SCHEMA_VERSION};
+use honba_core::{InstrumentId, SCHEMA_VERSION};
 
 use crate::manifest::{ManifestError, StrategyManifest, TimeframeSpec, Universe};
 

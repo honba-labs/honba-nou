@@ -16,7 +16,28 @@ use std::collections::BTreeMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use honba_messages::{BarAggregation, InstrumentId};
+use honba_core::InstrumentId;
+
+/// A bar aggregation unit, for [`TimeframeSpec`].
+///
+/// `honba_messages::BarAggregation` (the pre-migration type this was ported
+/// from) no longer exists; `honba-core` has no replacement either, since bar
+/// aggregation granularity is a strategy-manifest concept, not a shared wire
+/// type every subsystem needs. Defined locally here instead.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum BarAggregation {
+    /// Second-based bars.
+    Second,
+    /// Minute-based bars.
+    Minute,
+    /// Hour-based bars.
+    Hour,
+    /// Day-based bars.
+    Day,
+    /// Week-based bars.
+    Week,
+}
 
 /// Version of the strategy contract a manifest was compiled against.
 ///

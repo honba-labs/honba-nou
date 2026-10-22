@@ -1,10 +1,11 @@
 //! RSI mean-reversion strategy.
 
-use honba_engine::Result;
+use honba_core::{Bar, InstrumentId, Quantity};
 use honba_indicators::{Indicator, Rsi};
-use honba_messages::{Bar, InstrumentId};
+use rust_decimal::prelude::ToPrimitive;
 
 use crate::context::StrategyContext;
+use crate::error::Result;
 use crate::intent::OrderIntent;
 use crate::strategy::Strategy;
 
@@ -24,11 +25,11 @@ enum Side {
 ///
 /// ```
 /// use honba_strategy::{RsiReversal, Strategy};
-/// use honba_messages::{InstrumentId, Exchange};
+/// use honba_core::{Exchange, InstrumentId, Quantity};
 ///
 /// let strategy = RsiReversal::new(
-///     InstrumentId::new("NIFTY50", Exchange::new("NSE")),
-///     14, 30.0, 70.0, 75.0,
+///     InstrumentId::new(Exchange::Nse, "NIFTY50"),
+///     14, 30.0, 70.0, Quantity::from_u64(75),
 /// );
 /// assert_eq!(strategy.name(), "rsi_reversal");
 /// ```
@@ -37,7 +38,7 @@ pub struct RsiReversal {
     rsi: Rsi,
     oversold: f64,
     overbought: f64,
-    quantity: f64,
+    quantity: Quantity,
     side: Side,
 }
 
@@ -52,7 +53,7 @@ impl RsiReversal {
         period: usize,
         oversold: f64,
         overbought: f64,
-        quantity: f64,
+        quantity: Quantity,
     ) -> Self {
         assert!(period > 0, "RSI period must be positive");
         assert!(oversold < overbought, "oversold must be below overbought");
@@ -78,7 +79,8 @@ impl Strategy for RsiReversal {
     }
 
     fn on_bar(&mut self, ctx: &mut dyn StrategyContext, bar: &Bar) -> Result<()> {
-        let Some(v) = self.rsi.update(bar.close()) else {
+        let close = bar.close.0.to_f64().unwrap_or(0.0);
+        let Some(v) = self.rsi.update(close) else {
             return Ok(());
         };
 
