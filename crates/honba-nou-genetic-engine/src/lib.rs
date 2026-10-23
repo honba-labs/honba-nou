@@ -4,11 +4,10 @@
 //! Types and interfaces for genetic strategy synthesis, rule trees, and
 //! market regime analytics (Phase 6 of honba-nou master plan).
 
-use serde::{Serialize, Deserialize};
-use serde_json::Value;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
-use uuid::Uuid;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 // Market regimes detectable by statistical classifiers.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -66,7 +65,7 @@ pub struct ConditionData {
 /// Action data for order execution intents.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionData {
-    pub action: String,   // "buy", "sell", "close", "trail_stop", "hold"
+    pub action: String, // "buy", "sell", "close", "trail_stop", "hold"
     pub symbol: String,
     pub quantity: Decimal,
     pub price_limit: Option<Decimal>,
@@ -75,7 +74,7 @@ pub struct ActionData {
 /// Position sizing data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PositionSizingData {
-    pub method: String,        // "fixed_notional", "kelly", "volatility_adjusted"
+    pub method: String, // "fixed_notional", "kelly", "volatility_adjusted"
     pub notional: Option<Decimal>,
     pub win_probability: Option<Decimal>,
     pub win_loss_ratio: Option<Decimal>,
@@ -85,10 +84,7 @@ pub struct PositionSizingData {
 
 /// Complete rule node with typed data.
 pub fn make_rule_node(node_type: RuleNodeType, data: Value) -> RuleNode {
-    RuleNode {
-        node_type,
-        data,
-    }
+    RuleNode { node_type, data }
 }
 
 /// Genetic operator configuration.
@@ -173,19 +169,23 @@ pub fn archive_strategy(_strategy: &SynthesizedStrategy) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use uuid::Uuid;
 
     #[test]
     fn test_regime_detection() {
         let features = MarketFeatures {
             trend_slope: Decimal::new(1, 0),
-            volatility: Decimal::new(0.02, 4),
+            volatility: Decimal::new(200, 4),
             order_book_imbalance: Decimal::new(1, 0),
             mean_reversion_score: Decimal::new(-1, 0),
-            volume_ratio: Decimal::new(1.2, 4),
+            volume_ratio: Decimal::new(12000, 4),
         };
 
         let regime = detect_regime(&features);
-        assert!(matches!(regime, DetectedRegime::Bull | DetectedRegime::Sideways));
+        assert!(matches!(
+            regime,
+            DetectedRegime::Bull | DetectedRegime::Sideways
+        ));
     }
 
     #[test]
@@ -214,7 +214,7 @@ mod tests {
     fn test_synthesized_strategy() {
         let strategy = SynthesizedStrategy {
             strategy_id: Uuid::new_v4().to_string(),
-            rule_node: make_rule_node(
+            rule_tree: make_rule_node(
                 RuleNodeType::Condition,
                 serde_json::json!({"indicator": "RSI", "threshold": 30}),
             ),
@@ -232,7 +232,7 @@ mod tests {
     fn test_archive_strategy() {
         let strategy = SynthesizedStrategy {
             strategy_id: "test-strategy-123".to_string(),
-            rule_node: make_rule_node(
+            rule_tree: make_rule_node(
                 RuleNodeType::Condition,
                 serde_json::json!({"indicator": "RSI"}),
             ),

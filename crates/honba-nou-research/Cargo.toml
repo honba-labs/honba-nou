@@ -4,7 +4,12 @@ version = "0.1.0"
 edition = "2024"
 description = "Autonomous quantitative research loop: hypothesis generation, backtest pipeline, statistical verification, and strategy enhancement"
 
+[features]
+default = []
+llm = ["dep:honba-nou-llm"]
+
 [dependencies]
+honba-nou-llm = { workspace = true, optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 chrono = { version = "0.4", features = ["serde"] }

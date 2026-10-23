@@ -6,7 +6,7 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use std::fs;
 
-use honba_core::{Decision, Exchange, InstrumentId, Price, PriceBand, Quantity};
+use honba_core::{Decision, Exchange, InstrumentId, OrderSide, Price, PriceBand, Quantity};
 use honba_mon::{OtrConfig, RiskEngine, RiskLimits};
 use honba_nou_agent::{
     DecisionError, DecisionParser, LlmRecord, LlmTrailLogger, PromptReplayer, ReplayError,
@@ -18,9 +18,9 @@ fn test_closed_decision_parser_success_and_markdown() {
     let parser = DecisionParser::new().with_universe(vec!["RELIANCE", "TCS", "INFY"]);
 
     let json_text = r#"{
-        "action": "buy",
+        "action": "place_order",
         "symbol": "RELIANCE",
-        "exchange": "NSE",
+        "side": "BUY",
         "qty": "50",
         "price_limit": "2450.50",
         "algo_id": "SEBI_ALGO_007",
@@ -31,19 +31,21 @@ fn test_closed_decision_parser_success_and_markdown() {
         .parse_str(json_text)
         .expect("Should parse valid JSON");
     match &dec {
-        Decision::Buy {
+        Decision::PlaceOrder {
             symbol,
+            side,
             qty,
             price_limit,
             algo_id,
             ..
         } => {
             assert_eq!(symbol, "RELIANCE");
+            assert_eq!(*side, OrderSide::Buy);
             assert_eq!(qty.0, dec!(50));
             assert_eq!(price_limit.unwrap().0, dec!(2450.50));
             assert_eq!(algo_id, "SEBI_ALGO_007");
         }
-        _ => panic!("Expected Buy decision"),
+        _ => panic!("Expected PlaceOrder decision"),
     }
 
     // Markdown block wrapping
@@ -63,8 +65,9 @@ fn test_closed_decision_rejects_unknown_fields() {
 
     // LLM hallucinating extra fields
     let hallucinated_json = r#"{
-        "action": "buy",
+        "action": "place_order",
         "symbol": "RELIANCE",
+        "side": "BUY",
         "qty": "10",
         "algo_id": "ALGO_01",
         "unauthorized_leverage": "5x",
@@ -88,9 +91,9 @@ fn test_strict_validation_rules() {
         .with_max_price_deviation(dec!(10.00)); // 10% collar
 
     // 1. Symbol not in allowed universe
-    let unknown_sym = Decision::Buy {
+    let unknown_sym = Decision::PlaceOrder {
         symbol: "UNKNOWN_PUMP".into(),
-        exchange: Exchange::Nse,
+        side: OrderSide::Buy,
         qty: Quantity(dec!(10)),
         price_limit: None,
         algo_id: "ALGO_01".into(),
@@ -102,9 +105,9 @@ fn test_strict_validation_rules() {
     );
 
     // 2. Non-positive quantity
-    let zero_qty = Decision::Buy {
+    let zero_qty = Decision::PlaceOrder {
         symbol: "RELIANCE".into(),
-        exchange: Exchange::Nse,
+        side: OrderSide::Buy,
         qty: Quantity(Decimal::ZERO),
         price_limit: None,
         algo_id: "ALGO_01".into(),
@@ -116,9 +119,9 @@ fn test_strict_validation_rules() {
     ));
 
     // 3. Empty algo ID
-    let empty_algo = Decision::Buy {
+    let empty_algo = Decision::PlaceOrder {
         symbol: "RELIANCE".into(),
-        exchange: Exchange::Nse,
+        side: OrderSide::Buy,
         qty: Quantity(dec!(10)),
         price_limit: None,
         algo_id: "  ".into(),
@@ -131,9 +134,9 @@ fn test_strict_validation_rules() {
 
     // 4. Ungrounded limit price (deviates > 10%)
     let ref_price = Price(dec!(2000.00));
-    let ungrounded_buy = Decision::Buy {
+    let ungrounded_buy = Decision::PlaceOrder {
         symbol: "RELIANCE".into(),
-        exchange: Exchange::Nse,
+        side: OrderSide::Buy,
         qty: Quantity(dec!(10)),
         price_limit: Some(Price(dec!(2500.00))), // 25% above reference
         algo_id: "ALGO_01".into(),
@@ -158,9 +161,9 @@ fn test_strict_validation_rules() {
     }
 
     // Grounded limit price (within 10%) passes
-    let grounded_buy = Decision::Buy {
+    let grounded_buy = Decision::PlaceOrder {
         symbol: "RELIANCE".into(),
-        exchange: Exchange::Nse,
+        side: OrderSide::Buy,
         qty: Quantity(dec!(10)),
         price_limit: Some(Price(dec!(2050.00))), // 2.5% deviation
         algo_id: "ALGO_01".into(),
@@ -180,12 +183,13 @@ fn test_pre_trade_risk_engine_integration() {
     limits.max_quantity_per_order = Some(Quantity(dec!(100)));
 
     let mut risk_engine = RiskEngine::new(limits, OtrConfig::default());
+    risk_engine.register_algo("ALGO_01");
     let now = Utc::now();
 
     // 1. Order within limits succeeds
-    let valid_decision = Decision::Buy {
+    let valid_decision = Decision::PlaceOrder {
         symbol: "TCS".into(),
-        exchange: Exchange::Nse,
+        side: OrderSide::Buy,
         qty: Quantity(dec!(50)),
         price_limit: Some(Price(dec!(3500.00))),
         algo_id: "ALGO_01".into(),
@@ -198,9 +202,9 @@ fn test_pre_trade_risk_engine_integration() {
     );
 
     // 2. Order exceeding max quantity is refused by RiskEngine
-    let oversized_decision = Decision::Buy {
+    let oversized_decision = Decision::PlaceOrder {
         symbol: "TCS".into(),
-        exchange: Exchange::Nse,
+        side: OrderSide::Buy,
         qty: Quantity(dec!(500)), // Limit is 100
         price_limit: Some(Price(dec!(3500.00))),
         algo_id: "ALGO_01".into(),
@@ -218,9 +222,9 @@ fn test_pre_trade_risk_engine_integration() {
     );
     risk_engine.set_price_band(inst, band);
 
-    let out_of_band = Decision::Buy {
+    let out_of_band = Decision::PlaceOrder {
         symbol: "INFY".into(),
-        exchange: Exchange::Nse,
+        side: OrderSide::Buy,
         qty: Quantity(dec!(10)),
         price_limit: Some(Price(dec!(1800.00))), // Outside upper band 1650
         algo_id: "ALGO_01".into(),
@@ -277,11 +281,11 @@ fn test_prompt_audit_logging_and_sha256_checksums() {
 #[test]
 fn test_deterministic_prompt_replayer() {
     let p1 = "Tick RELIANCE 2500";
-    let o1 = r#"{"action": "buy", "symbol": "RELIANCE", "exchange": "NSE", "qty": "20", "price_limit": "2505.00", "algo_id": "REPLAY_ALGO"}"#;
+    let o1 = r#"{"action": "place_order", "symbol": "RELIANCE", "side": "BUY", "qty": "20", "price_limit": "2505.00", "algo_id": "REPLAY_ALGO"}"#;
     let d1: Decision = serde_json::from_str(o1).unwrap();
 
     let p2 = "Tick TCS 3500";
-    let o2 = r#"{"action": "sell", "symbol": "TCS", "exchange": "NSE", "qty": "15", "algo_id": "REPLAY_ALGO"}"#;
+    let o2 = r#"{"action": "place_order", "symbol": "TCS", "side": "SELL", "qty": "15", "algo_id": "REPLAY_ALGO"}"#;
     let d2: Decision = serde_json::from_str(o2).unwrap();
 
     let r1 = LlmRecord::new(p1, o1, "gpt-4o", Some(100), Some(0.0), Some(d1));

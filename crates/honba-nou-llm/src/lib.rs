@@ -11,7 +11,6 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use thiserror::Error;
-use std::sync::Arc;
 
 use honba_core::Decision;
 
@@ -104,7 +103,7 @@ pub trait LlmProvider: Send + Sync + 'static {
     fn context_window(&self) -> usize;
 
     /// Checks if the model supports a given feature.
-    fn supports(&self, feature: &str) -> bool {
+    fn supports(&self, _feature: &str) -> bool {
         false // default: no features
     }
 }
@@ -128,7 +127,7 @@ pub trait AuditRecorder: Send + Sync {
 }
 
 /// In-memory implementation of AuditRecorder for testing and lightweight use.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct InMemoryAuditRecorder {
     records: std::sync::Mutex<Vec<LlmAuditRecord>>,
 }
@@ -152,15 +151,15 @@ impl AuditRecorder for InMemoryAuditRecorder {
         let records = self.records.lock().unwrap();
         records
             .iter()
-            .find(|r| true)
+            .find(|r| &r.prompt_sha256 == prompt_hash)
             .cloned()
             .ok_or_else(|| LlmError::AuditRecord("replay not found".to_string()))
     }
 
     fn list_in_range(
         &self,
-        start: chrono::DateTime<chrono::Utc>,
-        end: chrono::DateTime<chrono::Utc>,
+        _start: chrono::DateTime<chrono::Utc>,
+        _end: chrono::DateTime<chrono::Utc>,
     ) -> Result<Vec<LlmAuditRecord>, LlmError> {
         let records = self.records.lock().unwrap();
         Ok(records.clone())
@@ -231,7 +230,7 @@ mod tests {
     #[test]
     fn test_in_memory_audit_recorder() {
         let recorder = InMemoryAuditRecorder::new();
-        
+
         let record = LlmAuditRecord {
             timestamp_utc: chrono::Utc::now(),
             model: "test".to_string(),
@@ -242,9 +241,9 @@ mod tests {
             raw_response: "test".to_string(),
             parsed_decision: Decision::Hold { reason: None },
         };
-        
+
         recorder.record(&record).unwrap();
         let retrieved = recorder.retrieve(&hash_prompt("test")).unwrap();
-        assert_eq!(reparsed_decision, record.parsed_decision);
+        assert_eq!(retrieved.parsed_decision, record.parsed_decision);
     }
 }

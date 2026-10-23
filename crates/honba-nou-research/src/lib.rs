@@ -18,7 +18,6 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use uuid::Uuid;
 use sha2::{Sha256, Digest};
-use anyhow::Context;
 
 /// Market regimes that hypotheses can be based upon.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -85,7 +84,7 @@ pub async fn generate_hypothesis(
         lookback_bars
     );
 
-    let (raw_response, decision) = provider.generate(&prompt).await
+    let (_raw_response, decision) = provider.generate(&prompt).await
         .map_err(|e| format!("LLM generation failed: {e}"))?;
 
     let strategy_spec = Some(serde_json::to_value(&decision).unwrap_or(Value::Object(Default::default())));
@@ -94,7 +93,7 @@ pub async fn generate_hypothesis(
         .as_ref()
         .map(|spec| {
             let spec_str = serde_json::to_string(spec).unwrap_or_default();
-            hash_prompt(format!("{}:{}", regime_str, spec_str).as_str())
+            hash_path(format!("{}:{}", regime_str, spec_str).as_str())
         });
 
     Ok(Hypothesis {
@@ -124,7 +123,7 @@ impl Default for Hypothesis {
 }
 
 /// Extract a StrategySpec JSON from an LLM response string.
-fn extract_strategy_spec_from_response(response: &str) -> Option<Value> {
+pub fn extract_strategy_spec_from_response(response: &str) -> Option<Value> {
     let s = response.trim();
 
     // Try ```json ... ``` fence
@@ -252,7 +251,7 @@ pub struct OrderRateLimit {
 /// Dispatches to honba-ya-backend and returns a backtest ID and progress.
 pub async fn run_backtest(
     strategy_spec: &Value,
-    config: &BacktestConfig,
+    _config: &BacktestConfig,
 ) -> Result<(String, Value), String> {
     let backtest_id = Uuid::new_v4().to_string();
 
@@ -286,7 +285,7 @@ pub struct VerificationConfig {
 }
 
 /// Verify a backtest candidate against statistical thresholds.
-/// 
+///
 /// Computes Deflated Sharpe Ratio (DSR), Probability of Backtest Overfitting (PBO),
 /// and Walk-Forward Efficiency (WFE). Rejects candidates failing any threshold.
 pub async fn verify_candidate(
@@ -321,7 +320,7 @@ pub async fn verify_candidate(
 }
 
 /// Compute the Deflated Sharpe Ratio.
-/// 
+///
 /// DSR = Sharpe / sqrt(2 * N) where N is the number of independent trials
 /// (Guhr, Leyvraz, Nadal 2015). Used to adjust for multiple comparison bias.
 pub async fn compute_deflated_sharpe(
@@ -344,7 +343,7 @@ pub async fn compute_deflated_sharpe(
 
     // Compute annualized Sharpe ratio
     let excess_return = total_return - config.risk_free_rate;
-    let Sharpe = if n_trades > 0.0 {
+    let sharpe = if n_trades > 0.0 {
         excess_return / n_trades.sqrt() * periods_per_year.sqrt()
     } else {
         0.0
@@ -358,16 +357,16 @@ pub async fn compute_deflated_sharpe(
         .unwrap_or(1.0);
 
     let dsr = if n_trials > 0.0 {
-        Sharpe / (2.0 * n_trials).sqrt()
+        sharpe / (2.0 * n_trials).sqrt()
     } else {
-        Sharpe
+        sharpe
     };
 
     Ok(dsr)
 }
 
 /// Compute the Probability of Backtest Overfitting (PBO).
-/// 
+///
 /// Uses the cumulative sign test to estimate the probability that
 /// the observed Sharpe ratio could arise by chance given N trials.
 pub async fn compute_pbo(dsr: f64, trade_log: &Value) -> Result<f64, String> {
@@ -383,7 +382,7 @@ pub async fn compute_pbo(dsr: f64, trade_log: &Value) -> Result<f64, String> {
     // Approximate PBO using threshold-based approach
     // For |z| > 3, PBO < 0.003; for |z| > 2, PBO < 0.05
     // for |z| > 1, PBO < 0.158; for |z| > 0.5, PBO < 0.383
-    let pbo = if z_score.abs() > 3.0 {
+    let pbo: f64 = if z_score.abs() > 3.0 {
         0.001
     } else if z_score.abs() > 2.0 {
         0.025
@@ -395,14 +394,12 @@ pub async fn compute_pbo(dsr: f64, trade_log: &Value) -> Result<f64, String> {
         0.5
     };
 
-    Ok({
-    let clamped = if pbo > 1.0_f64 { 1.0_f64 } else if pbo < 0.0_f64 { 0.0_f64 } else { pbo };
-    clamped
-})
+    let clamped = pbo.clamp(0.0_f64, 1.0_f64);
+    Ok(clamped)
 }
 
 /// Compute the Walk-Forward Efficiency (WFE).
-/// 
+///
 /// WFE = OOS Sharpe / IS Sharpe
 /// Values >= 0.60 indicate the strategy has genuine predictive power
 /// rather than just overfitting to the in-sample period.
@@ -426,10 +423,11 @@ pub async fn compute_wfe(trade_log: &Value) -> Result<f64, String> {
 }
 
 /// Generate a dataset manifest with cryptographic provenance.
-/// 
+///
 /// Creates a DatasetManifest with SHA-256 hashes of the data catalog
 /// and strategy spec, providing deterministic replay capability
 /// and regulatory audit trail.
+#[allow(clippy::too_many_arguments)]
 pub fn generate_dataset_manifest(
     data_catalog_path: &str,
     strategy_spec: &Value,
@@ -492,13 +490,13 @@ pub struct DatasetManifest {
 }
 
 /// Phase 5: Automatic Strategy Enhancer Loop
-/// 
+///
 /// Analyzes trade journals to identify loss patterns and automatically
 /// generates improved strategy specifications by suggesting indicator
 /// filters and parameter adjustments.
 
 /// Analyze trade journal for loss clustering and regime detection.
-/// 
+///
 /// Partitions trades by market regime and computes per-regime statistics
 /// to identify where the strategy suffers losses (e.g. sideways chop, trend failures).
 pub struct TradeJournalAnalysis {
@@ -607,7 +605,7 @@ pub async fn analyze_trade_journal(
 }
 
 /// Prompt AI agent with diagnosed regime failure and suggest indicator filter.
-/// 
+///
 /// Given a regime where the strategy suffers losses (e.g. 8% drawdown in
 /// sideways chop), prompts the AI to select an approved indicator from the
 /// catalog to filter false breakouts and mutates the strategy spec accordingly.
@@ -618,13 +616,13 @@ pub async fn suggest_indicator_filter(
     approved_indicators: &[String],
 ) -> Result<Value, String> {
     // Select appropriate indicator based on regime
-    let indicator = approved_indicators
+    let _indicator = approved_indicators
         .first()
         .cloned()
         .ok_or_else(|| "No approved indicators provided".to_string())?;
 
     // Build mutation prompt for the AI
-    let mutation_prompt = format!(
+    let _mutation_prompt = format!(
         "Strategy suffers {} in {} regime. Select one approved indicator to filter false signals/breakouts.",
         failure_metric, failure_regime
     );
@@ -648,7 +646,7 @@ pub async fn suggest_indicator_filter(
             .get("filters")
             .and_then(|v| v.as_array())
             .cloned()
-            .unwrap_or_else(|| Vec::new());
+            .unwrap_or_default();
 
         filters.push(Value::Object(adx_filter));
         mutated["filters"] = Value::Array(filters);
@@ -658,9 +656,9 @@ pub async fn suggest_indicator_filter(
 }
 
 /// Closed refinement iteration loop for Phase 5.
-/// 
+///
 /// Resubmits a mutated candidate to honba-ya-backtest, requires that
-/// out-of-sample Sharpe improves while Walk-Forward Efficiency (WFE) 
+/// out-of-sample Sharpe improves while Walk-Forward Efficiency (WFE)
 /// remains >= 0.60. Archives every iteration in an immutable HypothesisJournal.
 pub struct HypothesisJournalEntry {
     /// The hypothesis ID
@@ -688,7 +686,7 @@ pub fn archive_journal_entry(
 }
 
 /// Run a complete refinement iteration.
-/// 
+///
 /// 1. Analyze trade journal for loss patterns
 /// 2. Suggest indicator filter mutation
 /// 3. Run backtest with mutated strategy

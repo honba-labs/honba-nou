@@ -1,5 +1,5 @@
 //! # honba-nou-mcp Model Context Protocol Quantitative Server
-//! 
+//!
 //! Implements JSON-RPC 2.0 over stdio and SSE transports conforming to the Model Context Protocol
 //! specification. Exposes quantitative tools for indicator catalog, strategy validation, backtest execution,
 //! metric evaluation, strategy optimization, and decision explanation.
@@ -51,6 +51,7 @@ pub struct RpcError {
 
 /// Model Context Protocol quantitative server.
 pub struct McpServer {
+    #[allow(dead_code)]
     risk_engine: RiskEngine,
     indicator_catalog: IndicatorCatalog,
     spec_validator: SpecValidator,
@@ -85,7 +86,7 @@ impl McpServer {
     /// Handle a single JSON-RPC message and return a response.
     pub async fn handle_message(&self, message: &RpcMessage) -> RpcMessage {
         match message {
-            RpcMessage::Request { id, method, params } => {
+            RpcMessage::Request { id: _, method, params } => {
                 self.dispatch(method, params.clone()).await
             }
             RpcMessage::Notification { method, params } => {
@@ -586,7 +587,6 @@ impl McpServer {
                 self.metrics_calculator
                     .compute(tl, re, cfg)
                     .await
-                    .map(|m| serde_json::Value::from(m))
             }
             "optimize_strategy" => {
                 let sm = arguments
@@ -613,7 +613,7 @@ impl McpServer {
                 self.decision_explainor
                     .explain(decision, market_context, risk_check_results)
                     .await
-                    .map(|s| serde_json::Value::String(s))
+                    .map(serde_json::Value::String)
             }
             _ => Err(format!("unknown tool: {name}")),
         }
@@ -625,11 +625,11 @@ impl McpServer {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone)]
-struct ParameterSpec {
-    name: String,
-    min: f64,
-    max: f64,
-    step: f64,
+pub struct ParameterSpec {
+    pub name: String,
+    pub min: f64,
+    pub max: f64,
+    pub step: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -640,6 +640,12 @@ pub struct IndicatorSpec {
 
 pub struct IndicatorCatalog {
     indicators: std::collections::HashMap<String, IndicatorSpec>,
+}
+
+impl Default for IndicatorCatalog {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl IndicatorCatalog {
@@ -825,6 +831,7 @@ impl IndicatorCatalog {
 // ---------------------------------------------------------------------------
 
 pub struct SpecValidator {
+    #[allow(dead_code)]
     risk_engine: RiskEngine,
 }
 
@@ -836,18 +843,18 @@ impl SpecValidator {
 
     /// Validate a strategy manifest.
     pub async fn validate(&self, strategy_manifest: &serde_json::Value) -> Result<(), String> {
-        let name = strategy_manifest
+        let _name = strategy_manifest
             .get("name")
             .and_then(|v| v.as_str())
             .ok_or("missing name")?;
-        let api_version = strategy_manifest
+        let _api_version = strategy_manifest
             .get("api_version")
             .and_then(|v| v.as_str())
             .ok_or("missing api_version")?;
 
         // Validate driving timeframe
         let tf = strategy_manifest.get("driving_timeframe").ok_or("missing driving_timeframe")?;
-        let aggregation = tf
+        let _aggregation = tf
             .get("aggregation")
             .and_then(|v| v.as_str())
             .ok_or("missing aggregation")?;
@@ -920,7 +927,14 @@ impl SpecValidator {
 // ---------------------------------------------------------------------------
 
 pub struct BacktestDispatcher {
+    #[allow(dead_code)]
     max_timeout: Duration,
+}
+
+impl Default for BacktestDispatcher {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BacktestDispatcher {
@@ -934,8 +948,8 @@ impl BacktestDispatcher {
     /// Dispatch a backtest request and return a backtest ID.
     pub async fn dispatch(
         &self,
-        strategy_manifest: &serde_json::Value,
-        run_config: &serde_json::Value,
+        _strategy_manifest: &serde_json::Value,
+        _run_config: &serde_json::Value,
     ) -> Result<String, String> {
         let backtest_id = Uuid::new_v4().to_string();
         Ok(backtest_id)
@@ -953,7 +967,7 @@ impl MetricsCalculator {
     pub async fn compute(
         &self,
         trade_log: &serde_json::Value,
-        risk_engine_state: &serde_json::Value,
+        _risk_engine_state: &serde_json::Value,
         config: &serde_json::Value,
     ) -> Result<serde_json::Value, String> {
         let risk_free_rate = config
@@ -1014,29 +1028,29 @@ impl MetricsCalculator {
             }));
         }
 
-        let total_pnl: f64 = trades.iter().map(|t| t.pnl).sum();
+        let _total_pnl: f64 = trades.iter().map(|t| t.pnl).sum();
         let winning_trades: Vec<&TradeRecord> = trades.iter().filter(|t| t.pnl > 0.0).collect();
         let losing_trades: Vec<&TradeRecord> = trades.iter().filter(|t| t.pnl < 0.0).collect();
 
-        let win_rate = if trades.len() > 0 {
+        let win_rate = if !trades.is_empty() {
             winning_trades.len() as f64 / trades.len() as f64
         } else {
             0.0
         };
 
-        let avg_win: f64 = if !winning_trades.is_empty() {
+        let _avg_win: f64 = if !winning_trades.is_empty() {
             winning_trades.iter().map(|t| t.pnl).sum::<f64>() / winning_trades.len() as f64
         } else {
             0.0
         };
-        let avg_loss: f64 = if !losing_trades.is_empty() {
+        let _avg_loss: f64 = if !losing_trades.is_empty() {
             losing_trades.iter().map(|t| t.pnl).sum::<f64>() / losing_trades.len() as f64
         } else {
             0.0
         };
 
-        let total_win_pnl: f64 = winning_trades.iter().map(|t| t.pnl).sum();
-        let total_loss_pnl: f64 = losing_trades.iter().map(|t| t.pnl).sum();
+        let _total_win_pnl: f64 = winning_trades.iter().map(|t| t.pnl).sum();
+        let _total_loss_pnl: f64 = losing_trades.iter().map(|t| t.pnl).sum();
 
         // Sharpe ratio
         let excess_returns: Vec<f64> = trades.iter().map(|t| t.pnl - risk_free_rate / periods_per_year as f64).collect();
@@ -1143,6 +1157,7 @@ impl MetricsCalculator {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct TradeRecord {
     timestamp: String,
     instrument: String,
@@ -1162,7 +1177,7 @@ impl StrategyOptimizer {
     /// Run strategy optimization.
     pub async fn optimize(
         &self,
-        strategy_manifest: &serde_json::Value,
+        _strategy_manifest: &serde_json::Value,
         optimization_config: &serde_json::Value,
     ) -> Result<String, String> {
         let algorithm = optimization_config
@@ -1218,7 +1233,7 @@ impl DecisionExplainor {
             .and_then(|v| v.as_f64())
             .ok_or("missing qty")?;
 
-        let algo_id = decision
+        let _algo_id = decision
             .get("algo_id")
             .and_then(|v| v.as_str())
             .ok_or("missing algo_id")?

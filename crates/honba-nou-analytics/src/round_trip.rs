@@ -66,14 +66,25 @@ impl RoundTrip {
             }
         };
 
+        if entry.fee.currency != exit.fee.currency {
+            return Err(AnalyticsError::TradeMismatch(format!(
+                "cannot sum fees in different currencies ({} vs {})",
+                entry.fee.currency, exit.fee.currency
+            )));
+        }
+
+        let fees = entry
+            .fee
+            .amount
+            .checked_add(exit.fee.amount)
+            .ok_or_else(|| {
+                AnalyticsError::TradeMismatch("cannot sum fees: decimal overflow".into())
+            })?;
+
         let gross_pnl = match side {
             OrderSide::Buy => (exit_price.0 - entry_price.0) * quantity.0,
             OrderSide::Sell => (entry_price.0 - exit_price.0) * quantity.0,
         };
-
-        // FillReport has fee_breakdown_json as a JSON string; for analytics we
-        // sum the parsed fees if present, otherwise use zero.
-        let fees = dec!(0); // TODO: parse fee_breakdown_json when needed
 
         let net_pnl = gross_pnl - fees;
         let entry_notional = entry_price.0 * quantity.0;
@@ -140,6 +151,9 @@ impl RoundTrip {
 
     /// Returns the holding period in nanoseconds.
     pub fn duration_nanos(&self) -> u64 {
-        (self.exit_ts - self.entry_ts).num_nanoseconds().unwrap_or(0) as u64
+        (self.exit_ts - self.entry_ts)
+            .num_nanoseconds()
+            .unwrap_or(0)
+            .max(0) as u64
     }
 }

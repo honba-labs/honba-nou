@@ -1,27 +1,30 @@
 //! Numerical checks for analytics primitives.
 
+use chrono::{DateTime, Utc};
 use honba_analytics::{AnalyticsError, EquityStats, PerformanceReport, RoundTrip, TradeStats};
-use honba_entities::{Currency, Money, PositionSide, Trade};
-use honba_messages::{Exchange, InstrumentId, UnixNanos};
+use honba_core::uuid::Uuid;
+use honba_core::{Currency, Exchange, FillReport, InstrumentId, Money, OrderSide, Price, Quantity};
+use rust_decimal::{Decimal, prelude::ToPrimitive};
+use rust_decimal_macros::dec;
 
 fn id() -> InstrumentId {
-    InstrumentId::new("X", Exchange::new("NSE"))
+    InstrumentId::new(Exchange::Nse, "X")
 }
 
-fn ts(n: u64) -> UnixNanos {
-    UnixNanos::from_u64(n)
+fn ts(n: u64) -> DateTime<Utc> {
+    DateTime::from_timestamp_nanos(n as i64)
 }
 
 fn trip(entry: f64, exit: f64, qty: f64) -> RoundTrip {
     RoundTrip::new(
         id(),
-        PositionSide::Long,
-        qty,
-        entry,
-        exit,
+        OrderSide::Buy,
+        Quantity(Decimal::from_f64_retain(qty).unwrap()),
+        Price(Decimal::from_f64_retain(entry).unwrap()),
+        Price(Decimal::from_f64_retain(exit).unwrap()),
         ts(1),
         ts(2),
-        0.0,
+        dec!(0),
     )
 }
 
@@ -67,87 +70,85 @@ fn trade_stats_empty_input_errors() {
 
 #[test]
 fn round_trip_from_fills_pairs_buy_then_sell() {
-    use honba_messages::{OrderId, OrderSide};
-
-    let buy = Trade::new(
-        OrderId::new("B1"),
+    let buy = FillReport::new(
+        "F1",
+        "B1",
+        Uuid::new_v4(),
         id(),
         OrderSide::Buy,
-        10.0,
-        100.0,
-        Currency::Inr,
-        ts(1),
+        Price(dec!(100)),
+        Quantity(dec!(10)),
+        "ALGO_TEST",
         ts(1),
     )
-    .with_costs(Money::from_major_f64(0.5, Currency::Inr).unwrap());
-    let sell = Trade::new(
-        OrderId::new("S1"),
+    .with_fee(Money::new(dec!(0.5), Currency::Inr));
+    let sell = FillReport::new(
+        "F2",
+        "S1",
+        Uuid::new_v4(),
         id(),
         OrderSide::Sell,
-        10.0,
-        110.0,
-        Currency::Inr,
-        ts(2),
+        Price(dec!(110)),
+        Quantity(dec!(10)),
+        "ALGO_TEST",
         ts(2),
     )
-    .with_costs(Money::from_major_f64(0.5, Currency::Inr).unwrap());
+    .with_fee(Money::new(dec!(0.5), Currency::Inr));
     let rt = RoundTrip::from_fills(&buy, &sell).unwrap();
-    assert_eq!(rt.side, PositionSide::Long);
-    assert!((rt.gross_pnl - 100.0).abs() < 1e-9);
-    assert!((rt.fees - 1.0).abs() < 1e-9);
-    assert!((rt.net_pnl - 99.0).abs() < 1e-9);
+    assert_eq!(rt.side, OrderSide::Buy);
+    assert!((rt.gross_pnl.to_f64().unwrap() - 100.0).abs() < 1e-9);
+    assert!((rt.fees.to_f64().unwrap() - 1.0).abs() < 1e-9);
+    assert!((rt.net_pnl.to_f64().unwrap() - 99.0).abs() < 1e-9);
 }
 
 #[test]
 fn round_trip_from_fills_short_profits_on_decline() {
-    use honba_messages::{OrderId, OrderSide};
-
-    let sell = Trade::new(
-        OrderId::new("S1"),
+    let sell = FillReport::new(
+        "F1",
+        "S1",
+        Uuid::new_v4(),
         id(),
         OrderSide::Sell,
-        10.0,
-        110.0,
-        Currency::Inr,
-        ts(1),
+        Price(dec!(110)),
+        Quantity(dec!(10)),
+        "ALGO_TEST",
         ts(1),
     );
-    let buy = Trade::new(
-        OrderId::new("B1"),
+    let buy = FillReport::new(
+        "F2",
+        "B1",
+        Uuid::new_v4(),
         id(),
         OrderSide::Buy,
-        10.0,
-        100.0,
-        Currency::Inr,
-        ts(2),
+        Price(dec!(100)),
+        Quantity(dec!(10)),
+        "ALGO_TEST",
         ts(2),
     );
     let rt = RoundTrip::from_fills(&sell, &buy).unwrap();
-    assert_eq!(rt.side, PositionSide::Short);
-    assert!((rt.gross_pnl - 100.0).abs() < 1e-9);
+    assert_eq!(rt.side, OrderSide::Sell);
+    assert!((rt.gross_pnl.to_f64().unwrap() - 100.0).abs() < 1e-9);
 }
 
-fn fill(side: honba_messages::OrderSide, n: u64, costs: Money) -> Trade {
-    use honba_messages::OrderId;
-    Trade::new(
-        OrderId::new(format!("T{n}")),
+fn fill(side: OrderSide, n: u64, costs: Money) -> FillReport {
+    FillReport::new(
+        format!("F{n}"),
+        format!("T{n}"),
+        Uuid::new_v4(),
         id(),
         side,
-        10.0,
-        100.0,
-        costs.currency(),
-        ts(n),
+        Price(dec!(100)),
+        Quantity(dec!(10)),
+        "ALGO_TEST",
         ts(n),
     )
-    .with_costs(costs)
+    .with_fee(costs)
 }
 
 #[test]
 fn round_trip_from_fills_rejects_fee_currency_mismatch() {
-    use honba_messages::OrderSide;
-
-    let entry = fill(OrderSide::Buy, 1, Money::new(50, Currency::Inr));
-    let exit = fill(OrderSide::Sell, 2, Money::new(50, Currency::Usd));
+    let entry = fill(OrderSide::Buy, 1, Money::new(dec!(50), Currency::Inr));
+    let exit = fill(OrderSide::Sell, 2, Money::new(dec!(50), Currency::Usd));
     match RoundTrip::from_fills(&entry, &exit) {
         Err(AnalyticsError::TradeMismatch(msg)) => {
             assert!(msg.contains("cannot sum fees"), "{msg}")
@@ -158,10 +159,8 @@ fn round_trip_from_fills_rejects_fee_currency_mismatch() {
 
 #[test]
 fn round_trip_from_fills_rejects_fee_overflow() {
-    use honba_messages::OrderSide;
-
-    let entry = fill(OrderSide::Buy, 1, Money::new(i64::MAX, Currency::Inr));
-    let exit = fill(OrderSide::Sell, 2, Money::new(1, Currency::Inr));
+    let entry = fill(OrderSide::Buy, 1, Money::new(Decimal::MAX, Currency::Inr));
+    let exit = fill(OrderSide::Sell, 2, Money::new(dec!(1), Currency::Inr));
     match RoundTrip::from_fills(&entry, &exit) {
         Err(AnalyticsError::TradeMismatch(msg)) => {
             assert!(msg.contains("cannot sum fees"), "{msg}")
