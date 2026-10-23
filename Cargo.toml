@@ -5,7 +5,6 @@ members = [
   "crates/honba-nou-analytics",
   "crates/honba-nou-llm",
   "crates/honba-nou-prompt",
-  "crates/honba-nou-strategy",
   "crates/honba-nou-trader-loop",
   "crates/honba-nou-mcp",
   "crates/honba-nou-research",
@@ -48,14 +47,14 @@ honba-nou-analytics   = { path = "crates/honba-nou-analytics" }
 honba-nou-llm         = { path = "crates/honba-nou-llm" }
 honba-nou-mcp         = { path = "crates/honba-nou-mcp" }
 honba-nou-prompt      = { path = "crates/honba-nou-prompt" }
-honba-nou-strategy    = { path = "crates/honba-nou-strategy" }
+honba-nou-strategy    = { package = "honba-ya-strategy", path = "../honba-ya/crates/honba-ya-strategy" }
 honba-nou-trader-loop = { path = "crates/honba-nou-trader-loop" }
 honba-nou-genetic-engine    = { path = "crates/honba-nou-genetic-engine" }
 honba-nou-research    = { path = "crates/honba-nou-research" }
 
 # Aliases
 honba-analytics       = { package = "honba-nou-analytics", path = "crates/honba-nou-analytics" }
-honba-strategy        = { package = "honba-nou-strategy", path = "crates/honba-nou-strategy" }
+honba-strategy        = { package = "honba-ya-strategy", path = "../honba-ya/crates/honba-ya-strategy" }
 
 # Cross-repo dependencies
 honba-kokoro-types     = { path = "../honba-kokoro/crates/honba-kokoro-types" }
