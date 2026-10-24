@@ -78,3 +78,16 @@ honba-ya-testing       = { path = "../honba-ya/crates/honba-ya-testing" }
 honba-engine           = { package = "honba-ya-engine", path = "../honba-ya/crates/honba-ya-engine" }
 honba-sim              = { package = "honba-ya-sim", path = "../honba-ya/crates/honba-ya-sim" }
 honba-testing          = { package = "honba-ya-testing", path = "../honba-ya/crates/honba-ya-testing" }
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+
+[profile.prod]
+inherits = "release"
+lto = true
+codegen-units = 1
