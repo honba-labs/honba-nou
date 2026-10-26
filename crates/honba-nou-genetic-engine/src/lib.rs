@@ -1,44 +1,59 @@
 //! # honba-nou-genetic-engine
 //!
-//! StockSharp Odysseus Port
-//! Types and interfaces for genetic strategy synthesis, rule trees, and
-//! market regime analytics (Phase 6 of honba-nou master plan).
+//! StockSharp Odysseus Port (Phase 6 of Honba-Nou Master Plan):
+//! Automated genetic strategy generation, decision rule tree synthesis, and
+//! market regime clustering ported from C# to Rust.
+//!
+//! Provides:
+//! - **Task 6.1: Odysseus Genetic Rule Tree Engine**:
+//!   - Condition Nodes: Indicator threshold comparisons, crossover operators, logical AND/OR/NOT.
+//!   - Action Nodes: Order intents (`PlaceBuy`, `PlaceSell`, `ClosePosition`, `TrailStop`).
+//!   - Position Sizing Nodes: Fixed notional, Kelly criterion, volatility-adjusted sizing.
+//!   - Genetic programming operators: Sub-tree crossover, point mutation, multi-objective tournament selection preserving Pareto frontier.
+//! - **Task 6.2: Market Regime Analytics (StockSharp Analytics Port)**:
+//!   - Statistical market state classifiers: Hidden Markov Models (HMM) with Viterbi decoding,
+//!     Gaussian Mixture Models (GMM) with EM, and K-Means clustering.
+//!   - Regime-conditional rule execution.
+//! - **Task 6.3: Hybrid AI + Odysseus Auto-Synthesizer**:
+//!   - Frontier LLM macro hypothesis formulation.
+//!   - Combinatorial genetic rule tree search over historical datasets.
+//!   - Automatic compilation into declarative `StrategySpec` JSON and native Python `Strategy` classes.
 
+pub mod ast;
+pub mod genetic;
+pub mod regime;
+pub mod synthesizer;
+
+// Re-export AST types
+pub use ast::{
+    AstCondition, ComparisonOp, CrossoverCondition, CrossoverDirection, IndicatorTarget,
+    MarketEvaluationContext, OrderAction, PositionSizingRule, StrategyGenome, ThresholdCondition,
+};
+
+// Re-export Genetic programming types
+pub use genetic::{
+    EvaluatedCandidate, FitnessVector, GeneticConfig, compute_pareto_frontier, point_mutation,
+    subtree_crossover, tournament_selection,
+};
+
+// Re-export Market regime analytics
+pub use regime::{
+    DetectedRegime, GmmClassifier, GmmComponent, HmmClassifier, KMeansClassifier, MarketFeatures,
+    RegimeDetectionResult, detect_regime, fit_gmm, kmeans_cluster,
+};
+
+// Re-export Auto-synthesizer types
+pub use synthesizer::{AutoSynthesizerConfig, HybridAutoSynthesizer, MacroHypothesis};
+
+// -------------------------------------------------------------------------
+// Backwards Compatibility Types & Helpers for Existing Tests and Callers
+// -------------------------------------------------------------------------
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-// Market regimes detectable by statistical classifiers.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DetectedRegime {
-    Bull,
-    Bear,
-    Sideways,
-    HighVolatility,
-    LowVolatility,
-    Unknown,
-}
-
-/// Market features for regime classification.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MarketFeatures {
-    pub trend_slope: Decimal,
-    pub volatility: Decimal,
-    pub order_book_imbalance: Decimal,
-    pub mean_reversion_score: Decimal,
-    pub volume_ratio: Decimal,
-}
-
-/// Detected regime result with confidence.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RegimeDetectionResult {
-    pub regime: DetectedRegime,
-    pub confidence: f64,
-}
-
-/// Rule node types for the Odysseus genetic rule tree engine.
+/// Legacy RuleNodeType kept for backwards compatibility.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RuleNodeType {
@@ -47,14 +62,14 @@ pub enum RuleNodeType {
     PositionSizing,
 }
 
-/// Rule node in the genetic programming tree.
+/// Legacy RuleNode kept for backwards compatibility.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RuleNode {
     pub node_type: RuleNodeType,
     pub data: Value,
 }
 
-/// Condition data for indicator threshold comparisons.
+/// Legacy ConditionData kept for backwards compatibility.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConditionData {
     pub indicator: String,
@@ -62,7 +77,7 @@ pub struct ConditionData {
     pub operator: String, // "gt", "lt", "gte", "lte"
 }
 
-/// Action data for order execution intents.
+/// Legacy ActionData kept for backwards compatibility.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionData {
     pub action: String, // "buy", "sell", "close", "trail_stop", "hold"
@@ -71,7 +86,7 @@ pub struct ActionData {
     pub price_limit: Option<Decimal>,
 }
 
-/// Position sizing data.
+/// Legacy PositionSizingData kept for backwards compatibility.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PositionSizingData {
     pub method: String, // "fixed_notional", "kelly", "volatility_adjusted"
@@ -87,70 +102,7 @@ pub fn make_rule_node(node_type: RuleNodeType, data: Value) -> RuleNode {
     RuleNode { node_type, data }
 }
 
-/// Genetic operator configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GeneticConfig {
-    pub crossover_prob: f64,
-    pub mutation_prob: f64,
-    pub subtree_swap_prob: f64,
-    pub max_tree_depth: u32,
-    pub tournament_size: u32,
-}
-
-/// Market regime detection (simplified).
-pub fn detect_regime(_features: &MarketFeatures) -> DetectedRegime {
-    let trending = _features.trend_slope > Decimal::new(0, 0);
-    let high_vol = _features.volatility > Decimal::from(3) / Decimal::from(100);
-
-    if trending && !high_vol {
-        DetectedRegime::Bull
-    } else if !trending && high_vol {
-        DetectedRegime::HighVolatility
-    } else if !trending && !high_vol {
-        DetectedRegime::Sideways
-    } else {
-        DetectedRegime::Unknown
-    }
-}
-
-/// Fit Gaussian Mixture Model (simplified interface).
-pub fn fit_gmm(_features: &[MarketFeatures], _n_components: usize) -> Vec<Value> {
-    (0.._n_components)
-        .map(|_| {
-            serde_json::json!({
-                "weight": 1.0 / _n_components as f64,
-                "mean": 0.0f64,
-                "covariance": 0.1f64
-            })
-        })
-        .collect()
-}
-
-/// Run KMeans clustering (simplified interface).
-pub fn kmeans_cluster(
-    _features: &[MarketFeatures],
-    _n_clusters: usize,
-    _n_iterations: u32,
-) -> Value {
-    let assignments: Vec<usize> = (0.._features.len()).map(|i| i % _n_clusters).collect();
-    serde_json::json!({
-        "cluster_assignments": assignments,
-        "centroids": 0.5f64,
-        "wcss": 0.25f64
-    })
-}
-
-/// Auto-synthesizer configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AutoSynthesizerConfig {
-    pub regime_aware: bool,
-    pub population_size: usize,
-    pub generations: u32,
-    pub crossover_prob: f64,
-    pub mutation_prob: f64,
-}
-
-/// Synthesized strategy result.
+/// Legacy SynthesizedStrategy result kept for backwards compatibility.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SynthesizedStrategy {
     pub strategy_id: String,
@@ -162,8 +114,8 @@ pub struct SynthesizedStrategy {
 }
 
 /// Archive a synthesized strategy with provenance.
-pub fn archive_strategy(_strategy: &SynthesizedStrategy) -> String {
-    _strategy.strategy_id.clone()
+pub fn archive_strategy(strategy: &SynthesizedStrategy) -> String {
+    strategy.strategy_id.clone()
 }
 
 #[cfg(test)]

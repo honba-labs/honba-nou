@@ -1,17 +1,22 @@
-//! Tests for Phase 4: Autonomous Quantitative Research Loop.
+//! Tests for Phase 4 & Phase 5: Autonomous Quantitative Research Loop & Strategy Enhancer.
 
 use chrono::{Duration, TimeZone, Utc};
 use rust_decimal_macros::dec;
 
 use honba_core::order::OrderSide;
-use honba_nou_core::indicators::{IndicatorInvocation, StrategySpec};
+use honba_nou_core::indicators::{IndicatorInvocation, StrategySpec, validate_spec_indicators};
 use honba_nou_research::backtest::{
     IndianStatutoryCostCalculator, LakehouseCatalog, ParityBacktestRunner,
 };
-use honba_nou_research::enhancer::{analyze_trade_journal, suggest_indicator_filter};
+use honba_nou_research::enhancer::{
+    ClosedGrammarMutator, EnhancerPromptGenerator, JournalTrade, RefinementIterationLoop,
+    RefinementOutcome, TradeJournal, analyze_trade_journal, suggest_indicator_filter,
+};
 use honba_nou_research::hypothesis::{HypothesisGenerator, MarketRegime};
 use honba_nou_research::manifest::DatasetManifest;
-use honba_nou_research::verification::{StatisticalVerifier, VerificationThresholds};
+use honba_nou_research::verification::{
+    StatisticalVerificationReport, StatisticalVerifier, VerificationThresholds,
+};
 use serde_json::json;
 
 #[test]
@@ -297,4 +302,223 @@ fn test_trade_journal_analysis_and_filter_suggestion() {
     let filters = mutated["filters"].as_array().expect("filters array");
     assert_eq!(filters[0]["indicator"], "ADX");
     assert_eq!(filters[0]["operator"], "gt");
+}
+
+// =========================================================================
+// Phase 5: Automatic Strategy Enhancer Loop Tests
+// =========================================================================
+
+#[test]
+fn test_phase5_drawdown_and_failure_regime_diagnostic() {
+    // Task 5.1: Analyze trade journal to identify loss clustering in sideways chop,
+    // and compute trade efficiency, MAE, and MFE.
+    let mut journal = TradeJournal::new("BREAKOUT_MOMENTUM_V1");
+
+    let now = Utc::now();
+
+    // 2 winning trades in TrendUp
+    for i in 0..2 {
+        journal.add_trade(JournalTrade {
+            trade_id: format!("TR_WIN_{i}"),
+            entry_time: now + Duration::hours(i),
+            exit_time: now + Duration::hours(i + 1),
+            symbol: "RELIANCE.NSE".to_string(),
+            side: OrderSide::Buy,
+            entry_price: dec!(2500.0),
+            exit_price: dec!(2550.0),
+            quantity: dec!(100.0),
+            gross_pnl: dec!(5000.0),
+            net_pnl: dec!(4800.0),
+            mae: dec!(10.0),
+            mfe: dec!(60.0),
+            regime_at_entry: MarketRegime::TrendUp,
+        });
+    }
+
+    // 4 consecutive losing trades in MeanReversion (sideways chop) -> loss clustering!
+    for i in 0..4 {
+        journal.add_trade(JournalTrade {
+            trade_id: format!("TR_LOSS_{i}"),
+            entry_time: now + Duration::hours(10 + i),
+            exit_time: now + Duration::hours(11 + i),
+            symbol: "RELIANCE.NSE".to_string(),
+            side: OrderSide::Buy,
+            entry_price: dec!(2500.0),
+            exit_price: dec!(2475.0),
+            quantity: dec!(100.0),
+            gross_pnl: dec!(-2500.0),
+            net_pnl: dec!(-2700.0),
+            mae: dec!(35.0),
+            mfe: dec!(5.0),
+            regime_at_entry: MarketRegime::MeanReversion,
+        });
+    }
+
+    let diagnostic = journal.diagnose_failure();
+
+    assert_eq!(diagnostic.strategy_name, "BREAKOUT_MOMENTUM_V1");
+    assert_eq!(diagnostic.failure_regime, MarketRegime::MeanReversion);
+    assert_eq!(diagnostic.max_loss_streak, 4);
+    assert!(!diagnostic.loss_clusters.is_empty());
+    assert_eq!(diagnostic.loss_clusters[0].consecutive_losses, 4);
+    assert_eq!(
+        diagnostic.loss_clusters[0].dominant_regime,
+        MarketRegime::MeanReversion
+    );
+    assert!(diagnostic.drawdown_pct >= dec!(8.0));
+    assert!(diagnostic.avg_mae > dec!(0.0));
+    assert!(diagnostic.avg_mfe > dec!(0.0));
+    assert!(
+        diagnostic
+            .diagnosis_summary
+            .contains("BREAKOUT_MOMENTUM_V1")
+    );
+    assert!(diagnostic.diagnosis_summary.contains("consecutive losses"));
+}
+
+#[test]
+fn test_phase5_closed_grammar_rule_and_parameter_mutation() {
+    // Task 5.2: Prompt AI agent with diagnosed regime failure and mutate strategy spec
+    // with approved indicator filter from Catalog, expanding parameter boundaries.
+    let mut journal = TradeJournal::new("BREAKOUT_MOMENTUM_V1");
+    let now = Utc::now();
+    for i in 0..4 {
+        journal.add_trade(JournalTrade {
+            trade_id: format!("TR_{i}"),
+            entry_time: now + Duration::hours(i),
+            exit_time: now + Duration::hours(i + 1),
+            symbol: "TCS.NSE".to_string(),
+            side: OrderSide::Buy,
+            entry_price: dec!(3500.0),
+            exit_price: dec!(3450.0),
+            quantity: dec!(50.0),
+            gross_pnl: dec!(-2500.0),
+            net_pnl: dec!(-2700.0),
+            mae: dec!(60.0),
+            mfe: dec!(10.0),
+            regime_at_entry: MarketRegime::MeanReversion,
+        });
+    }
+    let diagnostic = journal.diagnose_failure();
+
+    // 1. Verify structured prompt formatting
+    let prompt = EnhancerPromptGenerator::build_prompt(&diagnostic);
+    assert!(prompt.contains("suffers"));
+    assert!(prompt.contains("drawdown in sideways chop"));
+    assert!(prompt.contains("Select an approved indicator from Catalog to filter false breakouts"));
+
+    // 2. Mutate spec adhering to IndicatorCatalog
+    let base_spec = StrategySpec::new("BREAKOUT_MOMENTUM_V1")
+        .with_indicator(IndicatorInvocation::new("SMA").with_param("length", dec!(20)));
+
+    let mutator = ClosedGrammarMutator::new();
+    let mutated_spec = mutator
+        .mutate_spec(&base_spec, &diagnostic)
+        .expect("mutated spec");
+
+    // Must contain original indicator + added filter (ADX for sideways chop)
+    assert_eq!(mutated_spec.indicators.len(), 2);
+    assert!(mutated_spec.indicators.iter().any(|i| i.name == "ADX"));
+    // Validate spec indicators passes global catalog checks
+    validate_spec_indicators(&mutated_spec).expect("must be approved by catalog");
+
+    // 3. Automatically expands parameter search boundaries for optimizer
+    let search_spaces = mutator.expand_search_boundaries(&mutated_spec);
+    assert_eq!(search_spaces.len(), 2); // SMA and ADX
+    let adx_space = search_spaces
+        .iter()
+        .find(|s| s.indicator_name == "ADX")
+        .unwrap();
+    assert_eq!(adx_space.boundaries[0].name, "length");
+    assert_eq!(adx_space.boundaries[0].min, dec!(5));
+    assert_eq!(adx_space.boundaries[0].max, dec!(50));
+}
+
+#[test]
+fn test_phase5_closed_refinement_iteration_loop_and_circular_prevention() {
+    // Task 5.3: Closed refinement iteration loop with immutable HypothesisJournal,
+    // requiring OOS Sharpe improvement and WFE >= 0.60, with circular trial prevention.
+    let mut refinement_loop = RefinementIterationLoop::new();
+
+    let base_spec = StrategySpec::new("ALPHA_101")
+        .with_indicator(IndicatorInvocation::new("EMA").with_param("length", dec!(50)));
+
+    let pass_verification = StatisticalVerificationReport {
+        in_sample_sharpe: 2.10,
+        out_of_sample_sharpe: 1.85,
+        walk_forward_efficiency: 0.88,    // WFE >= 0.60
+        deflated_sharpe_ratio: 0.96,      // DSR >= 0.95
+        probability_of_overfitting: 0.05, // PBO < 0.10
+        trials_count: 1,
+        passed: true,
+        rejection_reasons: Vec::new(),
+    };
+
+    // 1. First iteration: OOS Sharpe (1.85) improves over baseline (1.20) and WFE (0.88 >= 0.60)
+    let outcome1 = refinement_loop
+        .evaluate_refinement_iteration("HYP_1", &base_spec, 1.20, pass_verification.clone())
+        .expect("evaluation should succeed");
+
+    match outcome1 {
+        RefinementOutcome::Promoted {
+            iteration,
+            oos_sharpe,
+            wfe,
+            ..
+        } => {
+            assert_eq!(iteration, 1);
+            assert_eq!(oos_sharpe, 1.85);
+            assert_eq!(wfe, 0.88);
+        }
+        _ => panic!("expected promotion"),
+    }
+
+    // 2. Circular trial prevention: resubmitting exact same spec must be rejected!
+    let circular_res = refinement_loop.evaluate_refinement_iteration(
+        "HYP_1_RETRY",
+        &base_spec,
+        1.20,
+        pass_verification.clone(),
+    );
+    assert!(circular_res.is_err());
+    let err_msg = circular_res.err().unwrap();
+    assert!(err_msg.contains("Circular trial rejected"));
+
+    // 3. Second candidate with failing WFE (< 0.60)
+    let candidate2_spec = StrategySpec::new("ALPHA_101")
+        .with_indicator(IndicatorInvocation::new("EMA").with_param("length", dec!(100)));
+
+    let fail_verification = StatisticalVerificationReport {
+        in_sample_sharpe: 2.50,
+        out_of_sample_sharpe: 1.25,
+        walk_forward_efficiency: 0.50, // FAILS: 0.50 < 0.60
+        deflated_sharpe_ratio: 0.96,
+        probability_of_overfitting: 0.08,
+        trials_count: 1,
+        passed: true,
+        rejection_reasons: Vec::new(),
+    };
+
+    let outcome2 = refinement_loop
+        .evaluate_refinement_iteration("HYP_2", &candidate2_spec, 1.20, fail_verification)
+        .expect("evaluation should record rejection");
+
+    match outcome2 {
+        RefinementOutcome::Rejected {
+            iteration, reason, ..
+        } => {
+            assert_eq!(iteration, 2);
+            assert!(reason.contains("Walk-Forward Efficiency"));
+        }
+        _ => panic!("expected rejection"),
+    }
+
+    // 4. Verify cryptographic hash chain integrity of the hypothesis journal
+    assert_eq!(refinement_loop.journal.entries.len(), 2);
+    assert!(refinement_loop.journal.verify_chain());
+
+    // 5. Tamper test on the journal: tampering with an iteration's spec hash breaks verification
+    let mut tampered_journal = refinement_loop.journal.clone();
+    tampered_journal.entries[0].prev_record_hash = "tampered_hash".to_string();
+    assert!(!tampered_journal.verify_chain());
 }

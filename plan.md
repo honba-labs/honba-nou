@@ -109,17 +109,17 @@ Honba-Nou represents the quantitative research, execution intelligence, and fron
 
 ### Phase 5: Automatic Strategy Enhancer Loop (P1)
 
-- [ ] **Task 5.1: Drawdown & Failure Regime Diagnostic**
+- [x] **Task 5.1: Drawdown & Failure Regime Diagnostic**
   - Analyze trade journal to identify loss clustering (e.g. repeated losses during rangebound sideways chop).
   - Compute trade efficiency, MAE (Maximum Adverse Excursion), and MFE (Maximum Favorable Excursion).
 
-- [ ] **Task 5.2: Closed-Grammar Rule & Parameter Mutation**
+- [x] **Task 5.2: Closed-Grammar Rule & Parameter Mutation**
   - Prompt AI agent with diagnosed regime failure and prompt:
     *"Strategy suffers 8% drawdown in sideways chop. Select an approved indicator from Catalog to filter false breakouts."*
   - AI selects approved filter (e.g. `ADX > 25` or `ATR expansion`) and mutates strategy spec.
   - Automatically expands parameter search boundaries for GA / Bayesian optimizer in `honba-ya`.
 
-- [ ] **Task 5.3: Closed Refinement Iteration Loop**
+- [x] **Task 5.3: Closed Refinement Iteration Loop**
   - Resubmit mutated candidate to `honba-ya-backtest`.
   - Require that out-of-sample Sharpe improves while Walk-Forward Efficiency (WFE) remains $\ge 0.60$.
   - Archive every iteration in an immutable `HypothesisJournal` (retaining failed hypotheses to prevent circular trials).
@@ -130,26 +130,26 @@ Honba-Nou represents the quantitative research, execution intelligence, and fron
 > **Porting StockSharp Odysseus (StockSharp.Algo.Analytics / Odysseus)**:
 > Automated genetic strategy generation, decision rule tree synthesis, and market regime clustering ported from C# to Rust/Python.
 
-- [ ] **Task 6.1: Odysseus Genetic Rule Tree Engine**
-  - [ ] Port StockSharp Odysseus Strategy Genome / Abstract Syntax Tree (AST):
+- [x] **Task 6.1: Odysseus Genetic Rule Tree Engine**
+  - [x] Port StockSharp Odysseus Strategy Genome / Abstract Syntax Tree (AST):
     - Condition Nodes: Indicator threshold comparisons (e.g. `RSI < 30`, `Close > EMA_50`), crossover operators, logical `AND` / `OR` / `NOT` branching.
     - Action Nodes: Order intents (`PlaceBuy`, `PlaceSell`, `ClosePosition`, `TrailStop`).
     - Position Sizing Nodes: Fixed notional, Kelly criterion, volatility-adjusted sizing.
-  - [ ] Implement genetic programming operators:
+  - [x] Implement genetic programming operators:
     - Sub-tree crossover (swapping branch logic between parent rule trees).
     - Point mutation (perturbing indicator parameters, swapping operators `>` to `<`, or substituting indicators from the 100+ StockSharp catalog).
     - Multi-objective tournament selection preserving Pareto frontier (Sharpe, Profit Factor, Drawdown).
 
-- [ ] **Task 6.2: Market Regime Analytics (StockSharp Analytics Port)**
-  - [ ] Implement statistical market state classifiers:
+- [x] **Task 6.2: Market Regime Analytics (StockSharp Analytics Port)**
+  - [x] Implement statistical market state classifiers:
     - Hidden Markov Models (HMM) for bull/bear/sideways regime detection.
     - Gaussian Mixture Models (GMM) and KMeans clustering on volatility, trend slope, and order book imbalance.
-  - [ ] Support regime-conditional rule execution (e.g., enable trend-following sub-tree only during high-ADX trending regimes).
+  - [x] Support regime-conditional rule execution (e.g., enable trend-following sub-tree only during high-ADX trending regimes).
 
-- [ ] **Task 6.3: Hybrid AI + Odysseus Auto-Synthesizer**
-  - [ ] Frontier LLM (Claude/Gemini) formulates macro hypotheses and selects candidate indicator families.
-  - [ ] Odysseus genetic engine searches the combinatorial space of exact threshold rules and branch conditions over historical tick datasets.
-  - [ ] Validated rule trees automatically compile into declarative `StrategySpec` JSON or native Python `Strategy` classes.
+- [x] **Task 6.3: Hybrid AI + Odysseus Auto-Synthesizer**
+  - [x] Frontier LLM (Claude/Gemini) formulates macro hypotheses and selects candidate indicator families.
+  - [x] Odysseus genetic engine searches the combinatorial space of exact threshold rules and branch conditions over historical tick datasets.
+  - [x] Validated rule trees automatically compile into declarative `StrategySpec` JSON or native Python `Strategy` classes.
 
 ---
 
@@ -158,5 +158,6 @@ Honba-Nou represents the quantitative research, execution intelligence, and fron
 - [x] `cargo test -p honba-nou-core`: Unit tests for Decision parser, grounding checks, and indicator catalog.
 - [x] `cargo test -p honba-nou-mcp`: Integration tests for all MCP tool endpoints.
 - [x] `cargo test -p honba-nou-replay`: Deterministic replay tests verifying identical offline backtest output.
-- [x] `cargo test -p honba-nou-research`: Unit and integration tests for Phase 4 autonomous quantitative research loop.
+- [x] `cargo test -p honba-nou-research`: Unit and integration tests for Phase 4 autonomous quantitative research loop and Phase 5 strategy enhancer loop.
+- [x] `cargo test -p honba-nou-genetic-engine`: Unit and integration tests for Phase 6 StockSharp Odysseus AST, genetic operators, regime classifiers, and auto-synthesizer.
 - [x] Golden conformance test verifying JSON schema synchronization with `schema/mcp/mcp_tools.json`.
