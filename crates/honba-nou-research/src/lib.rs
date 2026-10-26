@@ -12,12 +12,12 @@
 
 // Core types and functions for the research loop
 
-use serde::{Serialize, Deserialize};
-use serde_json::Value;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
-use sha2::{Sha256, Digest};
 
 /// Market regimes that hypotheses can be based upon.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -84,17 +84,18 @@ pub async fn generate_hypothesis(
         lookback_bars
     );
 
-    let (_raw_response, decision) = provider.generate(&prompt).await
+    let (_raw_response, decision) = provider
+        .generate(&prompt)
+        .await
         .map_err(|e| format!("LLM generation failed: {e}"))?;
 
-    let strategy_spec = Some(serde_json::to_value(&decision).unwrap_or(Value::Object(Default::default())));
+    let strategy_spec =
+        Some(serde_json::to_value(&decision).unwrap_or(Value::Object(Default::default())));
 
-    let prompt_hash = strategy_spec
-        .as_ref()
-        .map(|spec| {
-            let spec_str = serde_json::to_string(spec).unwrap_or_default();
-            hash_path(format!("{}:{}", regime_str, spec_str).as_str())
-        });
+    let prompt_hash = strategy_spec.as_ref().map(|spec| {
+        let spec_str = serde_json::to_string(spec).unwrap_or_default();
+        hash_path(format!("{}:{}", regime_str, spec_str).as_str())
+    });
 
     Ok(Hypothesis {
         id: Uuid::new_v4().to_string(),
@@ -297,17 +298,27 @@ pub async fn verify_candidate(
     let pbo = compute_pbo(dsr, trade_log).await?;
     let wfe = compute_wfe(trade_log).await?;
 
-    let passed = dsr >= config.dsr_threshold && pbo < config.pbo_threshold && wfe >= config.wfe_threshold;
+    let passed =
+        dsr >= config.dsr_threshold && pbo < config.pbo_threshold && wfe >= config.wfe_threshold;
     let mut failure_reasons = Vec::new();
 
     if dsr < config.dsr_threshold {
-        failure_reasons.push(format!("DSR {:.4} < {} threshold", dsr, config.dsr_threshold));
+        failure_reasons.push(format!(
+            "DSR {:.4} < {} threshold",
+            dsr, config.dsr_threshold
+        ));
     }
     if pbo >= config.pbo_threshold {
-        failure_reasons.push(format!("PBO {:.4} >= {} threshold", pbo, config.pbo_threshold));
+        failure_reasons.push(format!(
+            "PBO {:.4} >= {} threshold",
+            pbo, config.pbo_threshold
+        ));
     }
     if wfe < config.wfe_threshold {
-        failure_reasons.push(format!("WFE {:.4} < {} threshold", wfe, config.wfe_threshold));
+        failure_reasons.push(format!(
+            "WFE {:.4} < {} threshold",
+            wfe, config.wfe_threshold
+        ));
     }
 
     Ok(VerificationResults {
@@ -521,9 +532,7 @@ pub struct TradeJournalAnalysis {
 }
 
 /// Analyze a trade journal for loss clustering and regime detection.
-pub async fn analyze_trade_journal(
-    trade_log: &Value,
-) -> Result<TradeJournalAnalysis, String> {
+pub async fn analyze_trade_journal(trade_log: &Value) -> Result<TradeJournalAnalysis, String> {
     let n_trades = trade_log
         .get("n_trades")
         .and_then(|v| v.as_u64())
@@ -676,9 +685,7 @@ pub struct HypothesisJournalEntry {
 }
 
 /// Archive a hypothesis journal entry.
-pub fn archive_journal_entry(
-    entry: &HypothesisJournalEntry,
-) -> Result<(), String> {
+pub fn archive_journal_entry(entry: &HypothesisJournalEntry) -> Result<(), String> {
     if entry.hypothesis_id.is_empty() {
         return Err("Hypothesis ID cannot be empty".to_string());
     }
@@ -715,33 +722,43 @@ pub async fn run_refinement_iteration(
     ];
 
     let mutated_spec = suggest_indicator_filter(
-        "mean-reversion",  // Could be derived from analysis
+        "mean-reversion", // Could be derived from analysis
         &format!("efficiency ratio: {}", analysis.efficiency_ratio),
         strategy_spec,
         &approved_indicators,
-    ).await?;
+    )
+    .await?;
 
     // Step 3: Run backtest with mutated strategy
-    let (backtest_id, _) = run_backtest(&mutated_spec, &BacktestConfig {
-        seed: 42,
-        starting_cash: Decimal::new(1000000, 2),
-        currency: Currency::Inr,
-        data: DataSourceConfig { root: "/data/lakehouse".to_string() },
-        execution: ExecutionConfig {
+    let (backtest_id, _) = run_backtest(
+        &mutated_spec,
+        &BacktestConfig {
+            seed: 42,
+            starting_cash: Decimal::new(1000000, 2),
+            currency: Currency::Inr,
+            data: DataSourceConfig {
+                root: "/data/lakehouse".to_string(),
+            },
+            execution: ExecutionConfig {
+                apply_market_calendar: true,
+                cost_model_version: "v1".to_string(),
+                fill_model: "proportional".to_string(),
+                slippage_multiplier: 0.1,
+            },
+            risk: RiskLimitsConfig {
+                max_notional: Some(Decimal::new(2000000, 2)),
+                max_participation: Some(0.1),
+                order_rate: Some(OrderRateLimit {
+                    max_orders: 10,
+                    window_ms: 60000,
+                }),
+                price_collar_bps: Some(100),
+                stale_after_ms: Some(5000),
+            },
             apply_market_calendar: true,
-            cost_model_version: "v1".to_string(),
-            fill_model: "proportional".to_string(),
-            slippage_multiplier: 0.1,
         },
-        risk: RiskLimitsConfig {
-            max_notional: Some(Decimal::new(2000000, 2)),
-            max_participation: Some(0.1),
-            order_rate: Some(OrderRateLimit { max_orders: 10, window_ms: 60000 }),
-            price_collar_bps: Some(100),
-            stale_after_ms: Some(5000),
-        },
-        apply_market_calendar: true,
-    }).await?;
+    )
+    .await?;
 
     // Step 4: Verify against statistical thresholds
     let verification = verify_candidate(trade_log, risk_state, verification_config).await?;

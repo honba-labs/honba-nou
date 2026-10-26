@@ -86,9 +86,11 @@ impl McpServer {
     /// Handle a single JSON-RPC message and return a response.
     pub async fn handle_message(&self, message: &RpcMessage) -> RpcMessage {
         match message {
-            RpcMessage::Request { id: _, method, params } => {
-                self.dispatch(method, params.clone()).await
-            }
+            RpcMessage::Request {
+                id: _,
+                method,
+                params,
+            } => self.dispatch(method, params.clone()).await,
             RpcMessage::Notification { method, params } => {
                 self.dispatch(method, params.clone()).await;
                 RpcMessage::Notification {
@@ -96,16 +98,14 @@ impl McpServer {
                     params: serde_json::Value::Null,
                 }
             }
-            RpcMessage::Response { .. } | RpcMessage::Error { .. } => {
-                RpcMessage::Error {
-                    id: "unknown".to_string(),
-                    error: RpcError {
-                        code: -32600,
-                        message: "invalid message type".to_string(),
-                        data: None,
-                    },
-                }
-            }
+            RpcMessage::Response { .. } | RpcMessage::Error { .. } => RpcMessage::Error {
+                id: "unknown".to_string(),
+                error: RpcError {
+                    code: -32600,
+                    message: "invalid message type".to_string(),
+                    data: None,
+                },
+            },
         }
     }
 
@@ -152,14 +152,8 @@ impl McpServer {
                     .and_then(|v| v.as_str())
                     .map(String::from)
                     .unwrap_or_else(|| format!("{:x}", Uuid::new_v4()));
-                let name = params
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                let arguments = params
-                    .get("arguments")
-                    .cloned()
-                    .unwrap_or(json!({}));
+                let name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                let arguments = params.get("arguments").cloned().unwrap_or(json!({}));
 
                 let result = self.call_tool(name, arguments).await;
                 match result {
@@ -568,8 +562,7 @@ impl McpServer {
                 let rc = arguments
                     .get("run_config")
                     .ok_or_else(|| "missing run_config".to_string())?;
-                self
-                    .backtest_dispatcher
+                self.backtest_dispatcher
                     .dispatch(sm, rc)
                     .await
                     .map(|id| json!(id))
@@ -584,9 +577,7 @@ impl McpServer {
                 let cfg = arguments
                     .get("config")
                     .ok_or_else(|| "missing config".to_string())?;
-                self.metrics_calculator
-                    .compute(tl, re, cfg)
-                    .await
+                self.metrics_calculator.compute(tl, re, cfg).await
             }
             "optimize_strategy" => {
                 let sm = arguments
@@ -794,9 +785,7 @@ impl IndicatorCatalog {
             },
         );
 
-        Self {
-            indicators,
-        }
+        Self { indicators }
     }
 
     /// Get the full indicator catalog as JSON.
@@ -853,7 +842,9 @@ impl SpecValidator {
             .ok_or("missing api_version")?;
 
         // Validate driving timeframe
-        let tf = strategy_manifest.get("driving_timeframe").ok_or("missing driving_timeframe")?;
+        let tf = strategy_manifest
+            .get("driving_timeframe")
+            .ok_or("missing driving_timeframe")?;
         let _aggregation = tf
             .get("aggregation")
             .and_then(|v| v.as_str())
@@ -867,7 +858,9 @@ impl SpecValidator {
         }
 
         // Validate parameters
-        let parameters = strategy_manifest.get("parameters").and_then(|v| v.as_object());
+        let parameters = strategy_manifest
+            .get("parameters")
+            .and_then(|v| v.as_object());
         if let Some(params) = parameters {
             for (param_name, param_val) in params {
                 if let Some(arr) = param_val.as_array() {
@@ -878,10 +871,7 @@ impl SpecValidator {
                         ));
                     }
                     if !arr.iter().all(|v| v.is_number()) {
-                        return Err(format!(
-                            "parameter {} values must be numbers",
-                            param_name
-                        ));
+                        return Err(format!("parameter {} values must be numbers", param_name));
                     }
                 } else {
                     return Err(format!(
@@ -902,7 +892,9 @@ impl SpecValidator {
         }
 
         // Validate subscriptions
-        let subscriptions = strategy_manifest.get("subscriptions").and_then(|v| v.as_object());
+        let subscriptions = strategy_manifest
+            .get("subscriptions")
+            .and_then(|v| v.as_object());
         if let Some(subs) = subscriptions {
             let instruments = subs.get("instruments").and_then(|v| v.as_array());
             if instruments.is_none_or(|v| v.is_empty()) {
@@ -913,7 +905,9 @@ impl SpecValidator {
         }
 
         // Validate universe
-        let universe = strategy_manifest.get("universe").and_then(|v| v.as_object());
+        let universe = strategy_manifest
+            .get("universe")
+            .and_then(|v| v.as_object());
         if universe.is_none() {
             return Err("missing universe".to_string());
         }
@@ -983,36 +977,25 @@ impl MetricsCalculator {
             .as_array()
             .ok_or("trade_log must be an array")?
             .iter()
-            .map(|t| {
-                TradeRecord {
-                    timestamp: t
-                        .get("timestamp")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    instrument: t
-                        .get("instrument")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    side: t
-                        .get("side")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    quantity: t
-                        .get("quantity")
-                        .and_then(|v| v.as_f64())
-                        .unwrap_or(0.0),
-                    price: t
-                        .get("price")
-                        .and_then(|v| v.as_f64())
-                        .unwrap_or(0.0),
-                    pnl: t
-                        .get("pnl")
-                        .and_then(|v| v.as_f64())
-                        .unwrap_or(0.0),
-                }
+            .map(|t| TradeRecord {
+                timestamp: t
+                    .get("timestamp")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                instrument: t
+                    .get("instrument")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                side: t
+                    .get("side")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                quantity: t.get("quantity").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                price: t.get("price").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                pnl: t.get("pnl").and_then(|v| v.as_f64()).unwrap_or(0.0),
             })
             .collect();
 
@@ -1053,7 +1036,10 @@ impl MetricsCalculator {
         let _total_loss_pnl: f64 = losing_trades.iter().map(|t| t.pnl).sum();
 
         // Sharpe ratio
-        let excess_returns: Vec<f64> = trades.iter().map(|t| t.pnl - risk_free_rate / periods_per_year as f64).collect();
+        let excess_returns: Vec<f64> = trades
+            .iter()
+            .map(|t| t.pnl - risk_free_rate / periods_per_year as f64)
+            .collect();
         let mean_excess = if !excess_returns.is_empty() {
             excess_returns.iter().sum::<f64>() / excess_returns.len() as f64
         } else {
@@ -1079,9 +1065,14 @@ impl MetricsCalculator {
         };
 
         // Sortino ratio
-        let downside_returns: Vec<f64> = excess_returns.iter().filter(|&&r| r < 0.0).map(|r| r.abs()).collect();
+        let downside_returns: Vec<f64> = excess_returns
+            .iter()
+            .filter(|&&r| r < 0.0)
+            .map(|r| r.abs())
+            .collect();
         let downside_dev: f64 = if !downside_returns.is_empty() {
-            let mean_downside = downside_returns.iter().sum::<f64>() / downside_returns.len() as f64;
+            let mean_downside =
+                downside_returns.iter().sum::<f64>() / downside_returns.len() as f64;
             let variance = downside_returns
                 .iter()
                 .map(|d| (d - mean_downside).powi(2))
@@ -1274,24 +1265,26 @@ impl DecisionExplainor {
 
         let explanation = format!(
             "Decision to {} {} at price {} with qty {} was evaluated against risk rules: {}",
-            action,
-            symbol,
-            price,
-            qty,
-            risk_details
+            action, symbol, price, qty, risk_details
         );
 
         let mut result = serde_json::Map::new();
-        result.insert("decision".to_string(), json!({
-            "action": action,
-            "symbol": symbol,
-            "qty": qty,
-            "price_limit": decision.get("price_limit").and_then(|v| v.as_f64()),
-        }));
-        result.insert("market_context".to_string(), json!({
-            "price": price,
-            "timestamp": timestamp,
-        }));
+        result.insert(
+            "decision".to_string(),
+            json!({
+                "action": action,
+                "symbol": symbol,
+                "qty": qty,
+                "price_limit": decision.get("price_limit").and_then(|v| v.as_f64()),
+            }),
+        );
+        result.insert(
+            "market_context".to_string(),
+            json!({
+                "price": price,
+                "timestamp": timestamp,
+            }),
+        );
         result.insert("risk_check_results".to_string(), json!(risk_checks));
         result.insert("explanation".to_string(), json!(explanation));
 

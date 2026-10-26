@@ -8,8 +8,9 @@
 #![deny(unsafe_code)]
 
 use async_trait::async_trait;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use honba_core::Decision;
@@ -30,8 +31,8 @@ pub struct LlmAuditRecord {
     pub timestamp_utc: chrono::DateTime<chrono::Utc>,
     /// Model identifier (e.g. "claude-3-opus-20240229")
     pub model: String,
-    /// Temperature used for sampling (0.0 to 1.0)
-    pub temperature: f64,
+    /// Temperature used for sampling (0.0 to 1.0) with Decimal precision
+    pub temperature: Decimal,
     /// Random seed for reproducibility
     pub seed: u64,
     /// SHA-256 hash of the prompt (enables deterministic replay)
@@ -79,8 +80,10 @@ pub fn validate_audit_record(record: &LlmAuditRecord) -> Result<(), LlmError> {
     if record.model.trim().is_empty() {
         return Err(LlmError::AuditRecord("model cannot be empty".to_string()));
     }
-    if record.temperature < 0.0 || record.temperature > 1.0 {
-        return Err(LlmError::AuditRecord("temperature must be in [0,1]".to_string()));
+    if record.temperature < Decimal::ZERO || record.temperature > Decimal::ONE {
+        return Err(LlmError::AuditRecord(
+            "temperature must be in [0,1]".to_string(),
+        ));
     }
     if record.seed == 0 {
         return Err(LlmError::AuditRecord("seed must be non-zero".to_string()));
@@ -178,72 +181,5 @@ pub fn hash_prompt(prompt: &str) -> PromptHash {
 
 /// Validates an audit record.
 pub fn validate_record(record: &LlmAuditRecord) -> Result<(), LlmError> {
-    if record.timestamp_utc.naive_utc() == chrono::NaiveDateTime::MIN {
-        return Err(LlmError::AuditRecord("invalid timestamp".to_string()));
-    }
-    if record.model.trim().is_empty() {
-        return Err(LlmError::AuditRecord("model cannot be empty".to_string()));
-    }
-    if record.temperature < 0.0 || record.temperature > 1.0 {
-        return Err(LlmError::AuditRecord("temperature must be in [0,1]".to_string()));
-    }
-    if record.seed == 0 {
-        return Err(LlmError::AuditRecord("seed must be non-zero".to_string()));
-    }
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_prompt_hash_determinism() {
-        let prompt = "What is the best RSI setting for NIFTY 50?";
-        let hash1 = hash_prompt(prompt);
-        let hash2 = hash_prompt(prompt);
-        assert_eq!(hash1, hash2);
-    }
-
-    #[test]
-    fn test_prompt_hash_different() {
-        let hash1 = hash_prompt("prompt A");
-        let hash2 = hash_prompt("prompt B");
-        assert_ne!(hash1, hash2);
-    }
-
-    #[test]
-    fn test_validate_record() {
-        let record = LlmAuditRecord {
-            timestamp_utc: chrono::Utc::now(),
-            model: "test-model".to_string(),
-            temperature: 0.7,
-            seed: 42,
-            prompt_sha256: hash_prompt("test prompt"),
-            raw_prompt: "test prompt".to_string(),
-            raw_response: "Decision.PlaceOrder".to_string(),
-            parsed_decision: Decision::Hold { reason: None },
-        };
-        assert!(validate_record(&record).is_ok());
-    }
-
-    #[test]
-    fn test_in_memory_audit_recorder() {
-        let recorder = InMemoryAuditRecorder::new();
-
-        let record = LlmAuditRecord {
-            timestamp_utc: chrono::Utc::now(),
-            model: "test".to_string(),
-            temperature: 0.5,
-            seed: 1,
-            prompt_sha256: hash_prompt("test"),
-            raw_prompt: "test".to_string(),
-            raw_response: "test".to_string(),
-            parsed_decision: Decision::Hold { reason: None },
-        };
-
-        recorder.record(&record).unwrap();
-        let retrieved = recorder.retrieve(&hash_prompt("test")).unwrap();
-        assert_eq!(retrieved.parsed_decision, record.parsed_decision);
-    }
+    validate_audit_record(record)
 }

@@ -7,5 +7,12 @@ license.workspace = true
 [dependencies]
 tokio.workspace = true
 tracing.workspace = true
-honba-mon = { path = "../../../honba-mon" }
+chrono.workspace = true
+honba-core = { workspace = true }
+honba-mon = { workspace = true }
 honba-nou-llm = { path = "../honba-nou-llm" }
+
+[dev-dependencies]
+async-trait.workspace = true
+rust_decimal.workspace = true
+rust_decimal_macros.workspace = true

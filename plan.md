@@ -1,62 +1,3 @@
-# Master Plan: 本場・脳 honba-nou
-
-> **The AI brain of the quantitative trading operating system.**  
-> Houses the governed AI intelligence framework, closed decision grammar, cryptographic prompt and decision replay harness, native Model Context Protocol (MCP) quantitative server, and the autonomous strategy research and auto-enhancement loop. Built with zero-I/O domain determinism, zero dynamic `eval`, strict SEBI algorithmic audit compliance, and seamless integration with the central actor runtime (`honba-ya`) and Python SDK (`honba-tamashii`).
-
----
-
-## 0. Executive Summary & Architectural Audit
-
-### 0.1 Current State vs Target Architecture
-
-`honba-nou` ("Brain") was originally sketched as a minimal LLM client stub. To fulfill the platform's AI-native architecture, it must be transformed into a governed quantitative research engine:
-
-| Capability | Current State | Target State (AI-Native Architecture) | Severity |
-| :--- | :--- | :--- | :--- |
-| **Domain Contracts** | Minimal stub (`LlmProvider` returning `"not implemented"`). | **100% unified on `honba-core`**: Strict use of `InstrumentId`, `Price`, `Quantity`, `Money`, and the canonical `honba_core::Decision` grammar. | **P0 (Critical)** |
-| **Decision Safety** | Unrestricted string completions; vulnerable to hallucinated orders and syntax errors. | **Closed Decision Grammar**: Strictly typed `Decision` enum parsed via `serde(deny_unknown_fields)`, mandatory SEBI `algo_id`, and scrip price band grounding. | **P0 (Critical)** |
-| **Prompt Determinism** | None; LLM completions are non-reproducible across time. | **Cryptographic Replay Harness**: SHA-256 hash chains archiving prompt context, temperature, seed, and raw completions for byte-for-byte deterministic offline backtesting. | **P0 (Critical)** |
-| **Indicator Guardrails**| AI can invent non-existent indicators or invalid formulas. | **Verified Indicator Catalog**: Model vocabulary is strictly restricted to verified mathematical indicators with enforced parameter bounds. | **P1 (High)** |
-| **Model Context Protocol** | No MCP support; cannot interface with frontier AI agents. | **Native MCP Server (`honba-nou-mcp`)**: Exposes structured quant tools (`get_indicator_catalog`, `run_backtest`, `evaluate_metrics`, `optimize_strategy`, `explain_decision`). | **P0 (Critical)** |
-| **Autonomous Research** | No autonomous loop. | **Autonomous Quant Research Loop**: Closed-loop hypothesis formulation, deterministic spec compilation, out-of-sample validation, and immutable dataset manifests. | **P1 (High)** |
-| **Strategy Auto-Enhancer** | No strategy reflection or auto-tuning. | **AI Strategy Enhancer**: Diagnoses drawdown clusters, analyzes failure regimes, and mutates strategy rules and parameter search spaces. | **P1 (High)** |
-
----
-
-## 1. Subsystem Architecture & Component Topology
-
-```text
- ┌────────────────────────────────────────────────────────────────────────┐
- │                      honba-nou COMPONENT TOPOLOGY                      │
- ├────────────────────────────────────────────────────────────────────────┤
- │                                                                        │
- │  ┌─────────────────────────┐            ┌───────────────────────────┐  │
- │  │      MCP SERVER         │            │   AUTONOMOUS RESEARCH     │  │
- │  │   (honba-nou-mcp)       │            │  (honba-nou-research)     │  │
- │  │ Tools for Claude/Gemini │            │ Hypothesis -> Spec ->     │  │
- │  │ - get_indicator_catalog │            │ Out-of-Sample Validation  │  │
- │  │ - run_backtest          │            └─────────────┬─────────────┘  │
- │  │ - evaluate_metrics      │                          │                │
- │  │ - optimize_strategy     │                          ▼                │
- │  └────────────┬────────────┘            ┌───────────────────────────┐  │
- │               │                         │    STRATEGY AUTO-ENHANCER │  │
- │               ▼                         │  Drawdown cluster analysis│  │
- │  ┌─────────────────────────┐            │  Rule & Parameter Mutation│  │
- │  │  INDICATOR CATALOG      │            └─────────────┬─────────────┘  │
- │  │ Approved formulas &     │                          │                │
- │  │ mathematical bounds     │                          ▼                │
- │  └────────────┬────────────┘            ┌───────────────────────────┐  │
- │               │                         │  CLOSED DECISION PARSER   │  │
- │               ▼                         │  `honba_core::Decision`   │  │
- │  ┌─────────────────────────┐            │  - serde(deny_unknown)    │  │
- │  │  CRYPTOGRAPHIC REPLAYER │◄───────────┤  - Mandatory SEBI algo_id │  │
- │  │  SHA-256 prompt cache   │            │  - Price band grounding   │  │
- │  │  Offline replay engine  │            └─────────────┬─────────────┘  │
- │  └─────────────────────────┘                          │                │
- │                                                       ▼                │
- │                                         To Risk Gate (`honba-mon`)     │
- └────────────────────────────────────────────────────────────────────────┘
-```
 
 ---
 
@@ -64,19 +5,19 @@
 
 ### Phase 1: Foundation & Closed Decision Contracts (P0)
 
-- [ ] **Task 1.1: Dependency & Domain Type Unification**
+- [x] **Task 1.1: Dependency & Domain Type Unification**
   - Wire `honba-core` into `honba-nou/Cargo.toml`.
   - Migrate `StrategyRunner` and `trader-loop` from excised `honba-kokoro-risk` to `honba-mon` and evaluate `Decision` against `RiskEngine` per [Risk Migration Plan](../honba-docs/docs/architecture/migration_plan_kokoro_risk_to_mon.md).
   - Remove all raw float usage in AI completions, enforcing `Price`, `Quantity`, `Money`, and `rust_decimal::Decimal`.
   - Define `honba-nou-core` crate providing shared traits and prompt types.
 
-- [ ] **Task 1.2: Closed Decision Parser (`honba_core::Decision`)**
+- [x] **Task 1.2: Closed Decision Parser (`honba_core::Decision`)**
   - Implement zero-allocation parser for `Decision` with `#[serde(deny_unknown_fields)]`.
   - Implement grounding validator: assert limit orders sit within instrument's active `PriceBand`.
   - Enforce presence of registered SEBI `algo_id` string matching `^[A-Z0-9_]{4,32}$`.
   - Unit tests verifying instant rejection of unknown fields, ungrounded prices, and missing algo IDs.
 
-- [ ] **Task 1.3: Verified Indicator Catalog**
+- [x] **Task 1.3: Verified Indicator Catalog**
   - Implement `IndicatorCatalog` registry containing approved mathematical indicators:
     - Moving Averages: SMA, EMA (lengths 2–500).
     - Oscillators: RSI (2–100), MACD (fast < slow), Stochastic, ADX (5–50).
@@ -88,7 +29,7 @@
 
 ### Phase 2: Cryptographic Prompt & Decision Replay Harness (P0)
 
-- [ ] **Task 2.1: Audit Record Schema (`LlmAuditRecord`)**
+- [x] **Task 2.1: Audit Record Schema (`LlmAuditRecord`)**
   - Define append-only schema:
     ```rust
     pub struct LlmAuditRecord {
@@ -105,12 +46,12 @@
     ```
   - Implement cryptographic hash chaining linking sequential records for SEBI regulatory compliance.
 
-- [ ] **Task 2.2: Replay Engine (`PromptReplayer`)**
+- [x] **Task 2.2: Replay Engine (`PromptReplayer`)**
   - Implement local SQLite WAL / JSONL prompt cache keyed by `prompt_sha256`.
   - In backtest mode, intercept LLM queries: if prompt hash exists in cache, replay cached completion with zero latency and zero API cost.
   - If cache miss in backtest: raise deterministic error or route to configured live provider.
 
-- [ ] **Task 2.3: Replay Parity Testing**
+- [x] **Task 2.3: Replay Parity Testing**
   - Write property tests asserting that replaying an archived prompt sequence reproduces the exact sequence of `Decision` enums.
 
 ---
@@ -201,7 +142,7 @@
 
 ## 3. Verification & CI Test Suite
 
-- [ ] `cargo test -p honba-nou-core`: Unit tests for Decision parser, grounding checks, and indicator catalog.
+- [x] `cargo test -p honba-nou-core`: Unit tests for Decision parser, grounding checks, and indicator catalog.
 - [ ] `cargo test -p honba-nou-mcp`: Integration tests for all MCP tool endpoints.
-- [ ] `cargo test -p honba-nou-replay`: Deterministic replay tests verifying identical offline backtest output.
+- [x] `cargo test -p honba-nou-replay`: Deterministic replay tests verifying identical offline backtest output.
 - [ ] Golden conformance test verifying JSON schema synchronization with `schema/mcp/mcp_tools.json`.

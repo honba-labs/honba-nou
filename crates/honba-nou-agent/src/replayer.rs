@@ -187,7 +187,10 @@ impl PromptReplayer {
                     vec![order]
                 }
             }
-            Decision::ModifyOrder { .. } | Decision::CancelOrder { .. } | Decision::Hold { .. } | Decision::CancelAll { .. } => Vec::new(),
+            Decision::ModifyOrder { .. }
+            | Decision::CancelOrder { .. }
+            | Decision::Hold { .. }
+            | Decision::CancelAll { .. } => Vec::new(),
         }
     }
 }

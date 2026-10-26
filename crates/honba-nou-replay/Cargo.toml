@@ -1,0 +1,28 @@
+[package]
+name = "honba-nou-replay"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cryptographic prompt and decision replay harness with SQLite WAL / JSONL caching for honba-nou"
+
+[dependencies]
+honba-core = { path = "../../../honba-core" }
+honba-mon = { path = "../../../honba-mon" }
+honba-nou-core = { path = "../honba-nou-core" }
+serde.workspace = true
+serde_json.workspace = true
+rust_decimal.workspace = true
+rust_decimal_macros.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+sha2.workspace = true
+uuid.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+schemars.workspace = true
+async-trait.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

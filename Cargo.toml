@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
+  "crates/honba-nou-core",
+  "crates/honba-nou-replay",
   "crates/honba-nou-agent",
   "crates/honba-nou-analytics",
   "crates/honba-nou-llm",
@@ -35,13 +37,16 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 uuid = { version = "1", features = ["v4", "serde"] }
 axum = "0.7"
 clap = { version = "4", features = ["derive"] }
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "sqlite", "postgres", "chrono"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "sqlite", "chrono"] }
 schemars = { version = "0.8", features = ["derive"] }
 sha2 = "0.10"
+proptest = "1"
 
 honba-core            = { path = "../honba-core" }
 honba-mon             = { path = "../honba-mon" }
 
+honba-nou-core        = { path = "crates/honba-nou-core" }
+honba-nou-replay      = { path = "crates/honba-nou-replay" }
 honba-nou-agent       = { path = "crates/honba-nou-agent" }
 honba-nou-analytics   = { path = "crates/honba-nou-analytics" }
 honba-nou-llm         = { path = "crates/honba-nou-llm" }
@@ -55,15 +60,6 @@ honba-nou-research    = { path = "crates/honba-nou-research" }
 # Aliases
 honba-analytics       = { package = "honba-nou-analytics", path = "crates/honba-nou-analytics" }
 honba-strategy        = { package = "honba-ya-strategy", path = "../honba-ya/crates/honba-ya-strategy" }
-
-# Cross-repo dependencies
-honba-kokoro-types     = { path = "../honba-kokoro/crates/honba-kokoro-types" }
-honba-kokoro-messages  = { path = "../honba-kokoro/crates/honba-kokoro-messages" }
-honba-kokoro-entities  = { path = "../honba-kokoro/crates/honba-kokoro-entities" }
-honba-kokoro-risk      = { path = "../honba-kokoro/crates/honba-kokoro-risk" }
-honba-messages         = { package = "honba-kokoro-messages", path = "../honba-kokoro/crates/honba-kokoro-messages" }
-honba-entities         = { package = "honba-kokoro-entities", path = "../honba-kokoro/crates/honba-kokoro-entities" }
-honba-risk             = { package = "honba-kokoro-risk", path = "../honba-kokoro/crates/honba-kokoro-risk" }
 
 honba-me-market        = { path = "../honba-me/crates/honba-me-market" }
 honba-me-feed          = { path = "../honba-me/crates/honba-me-feed" }
