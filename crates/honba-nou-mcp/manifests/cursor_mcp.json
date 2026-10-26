@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "honba-nou": {
+      "command": "honba-nou-mcp",
+      "args": [
+        "--transport",
+        "stdio"
+      ],
+      "transport": "stdio"
+    }
+  }
+}

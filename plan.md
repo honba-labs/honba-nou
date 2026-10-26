@@ -1,3 +1,16 @@
+# 本場・脳 (Honba-Nou) Master Plan: Frontier AI Execution Engine
+
+## 1. Executive Summary & Non-Negotiable Directives
+
+Honba-Nou represents the quantitative research, execution intelligence, and frontier AI reasoning brain of the Honba ecosystem. Operating under strict SEBI algorithmic trading guidelines, strict Indian market microstructure constraints (ICCL settlement, circular price bands, STT, turnover charges), and zero-loss risk gates, Honba-Nou bridges frontier LLMs (Claude 3.7 Sonnet, Gemini 2.5 Flash, DeepSeek-R1) with deterministic low-latency execution engines (`honba-ya`, `honba-mon`, `honba-me`).
+
+### Immutable Architectural Tenets
+
+1. **Deterministic Replay Guarantee**: Every strategy, prompt, decision, and market observation must be cryptographically pinned (SHA-256) and replayable offline with bit-for-bit parity against live execution.
+2. **Zero Floats in Decision Contracts**: LLM JSON completions and execution boundaries must never communicate raw IEEE-754 floats. All prices, quantities, and cash are strictly parsed into `rust_decimal::Decimal`, `Price`, `Quantity`, or `Money`.
+3. **Mandatory SEBI Audit Envelope**: No order intent leaves Honba-Nou without an append-only audit record containing the full market context, temperature, seed, model ID, raw LLM completion, registered SEBI `algo_id`, and pre-trade risk check timestamps.
+4. **Closed Decision Grammar**: The model operates within a bounded domain grammar. Free-form text completions are rejected; only strongly typed `Decision` schemas passing JSON-Schema validation and circuit-breaker grounding checks can be dispatched to `honba-mon` / `honba-ya`.
+5. **Fail-Closed Circuit Grounding**: All LLM suggested prices are validated against the real-time NSE/BSE dynamic price bands (`PriceBand`). Limit prices outside the circuit band or exceeding maximum allowable slippage immediately fail closed.
 
 ---
 
@@ -58,11 +71,11 @@
 
 ### Phase 3: Model Context Protocol (MCP) Quantitative Server (P0)
 
-- [ ] **Task 3.1: MCP Server Transport (`honba-nou-mcp`)**
+- [x] **Task 3.1: MCP Server Transport (`honba-nou-mcp`)**
   - Implement JSON-RPC 2.0 over Stdio and SSE transports conforming to Model Context Protocol specification.
   - Integrate with `honba-ya` actor runtime for backtest execution.
 
-- [ ] **Task 3.2: Quantitative Tool Handlers**
+- [x] **Task 3.2: Quantitative Tool Handlers**
   - `get_indicator_catalog`: Returns JSON vocabulary of approved indicators and acceptable parameter bounds.
   - `check_spec`: Validates strategy syntax and parameter ranges without running backtest.
   - `run_backtest`: Dispatches backtest request to `honba-ya-backtest` and returns progress.
@@ -70,23 +83,23 @@
   - `optimize_strategy`: Triggers genetic or Bayesian parameter sweep in `honba-ya`.
   - `explain_decision`: Returns exact prompt, market context, and risk check for a historical trade decision.
 
-- [ ] **Task 3.3: Frontier Agent Integration**
+- [x] **Task 3.3: Frontier Agent Integration**
   - Generate MCP configuration manifests for Claude Desktop, Cursor, and Gemini CLI.
 
 ---
 
 ### Phase 4: Autonomous Quantitative Research Loop (P1)
 
-- [ ] **Task 4.1: Research Hypothesis Pipeline**
+- [x] **Task 4.1: Research Hypothesis Pipeline**
   - Implement `HypothesisGenerator` prompting LLMs to formulate falsifiable quantitative trading ideas based on market regimes (trend, mean-reversion, volatility breakout).
   - Convert hypothesis into closed `StrategySpec` JSON adhering to Indicator Catalog.
 
-- [ ] **Task 4.2: Isolated Parity Backtest Pipeline**
+- [x] **Task 4.2: Isolated Parity Backtest Pipeline**
   - Ingest Lakehouse Parquet catalog (`honba-data`) for in-sample training window.
   - Execute backtest via `honba-ya-backtest` enforcing exact Indian statutory costs and T+1 settlement.
   - Collect trade log, execution slippage, and equity mark history.
 
-- [ ] **Task 4.3: Out-of-Sample Statistical Verification**
+- [x] **Task 4.3: Out-of-Sample Statistical Verification**
   - Partition historical data into In-Sample (Train) and Out-of-Sample (Validation) slices.
   - Compute Deflated Sharpe Ratio (DSR) adjusting for number of trials. Reject any candidate with $\text{DSR} < 0.95$.
   - Compute Probability of Backtest Overfitting (PBO). Reject any candidate with $\text{PBO} \ge 0.10$.
@@ -143,6 +156,7 @@
 ## 3. Verification & CI Test Suite
 
 - [x] `cargo test -p honba-nou-core`: Unit tests for Decision parser, grounding checks, and indicator catalog.
-- [ ] `cargo test -p honba-nou-mcp`: Integration tests for all MCP tool endpoints.
+- [x] `cargo test -p honba-nou-mcp`: Integration tests for all MCP tool endpoints.
 - [x] `cargo test -p honba-nou-replay`: Deterministic replay tests verifying identical offline backtest output.
-- [ ] Golden conformance test verifying JSON schema synchronization with `schema/mcp/mcp_tools.json`.
+- [x] `cargo test -p honba-nou-research`: Unit and integration tests for Phase 4 autonomous quantitative research loop.
+- [x] Golden conformance test verifying JSON schema synchronization with `schema/mcp/mcp_tools.json`.

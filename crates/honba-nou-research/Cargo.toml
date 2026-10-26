@@ -9,13 +9,19 @@ default = []
 llm = ["dep:honba-nou-llm"]
 
 [dependencies]
+honba-core = { workspace = true }
+honba-nou-core = { workspace = true }
+honba-nou-analytics = { workspace = true }
 honba-nou-llm = { workspace = true, optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 chrono = { version = "0.4", features = ["serde"] }
 rust_decimal = { version = "1" }
+rust_decimal_macros = { workspace = true }
 uuid = { version = "1", features = ["v4"] }
 sha2 = "0.10"
 futures = "0.3"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "io-util"] }
 anyhow = "1"
+thiserror = { workspace = true }
+tracing = { workspace = true }

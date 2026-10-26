@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "honba-nou": {
+      "command": "honba-nou-mcp",
+      "args": [
+        "--transport",
+        "stdio"
+      ],
+      "env": {
+        "HONBA_ENV": "production",
+        "RUST_LOG": "info"
+      }
+    }
+  }
+}

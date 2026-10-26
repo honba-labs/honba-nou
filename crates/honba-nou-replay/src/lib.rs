@@ -1,3 +1,5 @@
+#![allow(clippy::collapsible_if, clippy::needless_borrows_for_generic_args)]
+
 //! # 本場・脳 honba-nou-replay
 //!
 //! Cryptographic prompt and decision replay harness.

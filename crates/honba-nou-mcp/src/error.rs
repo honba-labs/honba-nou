@@ -1,8 +1,5 @@
 //! Error types for the MCP quantitative server.
 
-use serde_json::Value;
-use std::fmt;
-
 /// MCP-specific errors.
 #[derive(Debug, thiserror::Error)]
 pub enum McpError {
@@ -37,12 +34,12 @@ pub enum McpError {
     /// Transport error
     #[error("Transport error: {0}")]
     Transport(String),
-}
 
-impl fmt::Display for McpError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.description())
-    }
-}
+    /// Session not found
+    #[error("Session not found: {0}")]
+    SessionNotFound(String),
 
-impl std::error::Error for McpError {}
+    /// IO error
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+}

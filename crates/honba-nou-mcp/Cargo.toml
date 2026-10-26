@@ -5,16 +5,25 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["io-std"] }
 futures = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 sha2 = "0.10"
 chrono = { workspace = true }
+rust_decimal = { workspace = true }
+rust_decimal_macros = { workspace = true }
+axum = { workspace = true }
+tracing = { workspace = true }
 honba-core = { workspace = true }
 honba-mon = { workspace = true }
+honba-nou-core = { workspace = true }
+honba-nou-analytics = { workspace = true }
 honba-nou-llm = { workspace = true }
 uuid = { workspace = true }
 bytes = "1.4"
 rand = "0.8"
+
+[dev-dependencies]
+reqwest = { workspace = true }

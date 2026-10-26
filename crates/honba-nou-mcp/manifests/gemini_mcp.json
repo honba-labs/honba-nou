@@ -1,0 +1,14 @@
+{
+  "mcp_servers": {
+    "honba-nou": {
+      "command": "honba-nou-mcp",
+      "args": [
+        "--transport",
+        "stdio"
+      ],
+      "env": {
+        "HONBA_SEBI_COMPLIANCE": "strict"
+      }
+    }
+  }
+}
