@@ -12,6 +12,7 @@ members = [
   "crates/honba-nou-research",
   "crates/honba-nou-genetic-engine",
 ]
+default-members = []
 
 [workspace.package]
 version = "0.1.0"
