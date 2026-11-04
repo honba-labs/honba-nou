@@ -153,6 +153,27 @@ Honba-Nou represents the quantitative research, execution intelligence, and fron
 
 ---
 
+### Phase 7: Filings RAG Retrieval, Driver Scoring & Verbatim-Cited QA (P1)
+> Supplies the real retrieval, scoring, and citation-grounding logic behind `honba-kao`'s Filings Intelligence (Security Hub Filings tab, Research Dossiers), which today is 100% hardcoded mock data. `honba-data` owns the raw filing documents and page-indexed text; `honba-nou` owns everything in this phase (embeddings, retrieval, LLM-driven scoring, grounding); `honba-tamashii` exposes the resulting tools over MCP to `honba-kao` and other agents.
+
+- [ ] **Task 7.1: Filings Retriever (`honba-nou-filings`)**
+  - Build an embedding index over page-indexed filing text served by `honba-data`'s `FilingsRepository` (read-only; `honba-nou` never ingests or stores raw documents itself).
+  - Implement `FilingsRetriever::search(query, symbol, top_k) -> Vec<FilingQuoteCandidate>`, each candidate carrying `document_id`, `page_number`, and the verbatim excerpt returned by `honba-data`.
+  - Local vector store (HNSW or DuckDB VSS via `honba-data`); no raw text duplicated outside `honba-data`'s catalog.
+
+- [ ] **Task 7.2: Closed-Grammar Driver Scoring (`FilingsAnswer` / `DriverScore`)**
+  - Define `#[serde(deny_unknown_fields)]` schemas `DriverScore { driver_id, direction: Growth | Headwind, confidence, citations: Vec<FilingCitation> }` scoring the 21 growth/headwind drivers consumed by `honba-kao`'s Research Dossiers.
+  - Every `DriverScore` must carry at least one non-empty `citations` entry; scores with zero grounded citations are rejected before leaving `honba-nou` (fail-closed, consistent with Task 1.2's grounding validator).
+
+- [ ] **Task 7.3: "Ask the Filings" Grounded QA & Citation Verification**
+  - Before returning any answer containing a quotation, call `honba-data`'s `verify_quote(document_id, page_number, quoted_text)` to confirm the exact substring exists on that page; reject and re-retrieve on mismatch.
+  - Archive every filings prompt/completion/citation set through the existing `LlmAuditRecord` / `PromptReplayer` machinery (Phase 2) for deterministic replay.
+
+- [ ] **Task 7.4: MCP Tool Handlers for Filings**
+  - Add `query_filings` and `get_driver_citations` handlers alongside the Phase 3 quant tools, returning `FilingsAnswer` / `DriverScore` JSON for consumption by `honba-tamashii`'s MCP bridge (see `honba-tamashii/plan.md` §3.8) and ultimately `honba-kao`.
+
+---
+
 ## 3. Verification & CI Test Suite
 
 - [x] `cargo test -p honba-nou-core`: Unit tests for Decision parser, grounding checks, and indicator catalog.
@@ -161,3 +182,4 @@ Honba-Nou represents the quantitative research, execution intelligence, and fron
 - [x] `cargo test -p honba-nou-research`: Unit and integration tests for Phase 4 autonomous quantitative research loop and Phase 5 strategy enhancer loop.
 - [x] `cargo test -p honba-nou-genetic-engine`: Unit and integration tests for Phase 6 StockSharp Odysseus AST, genetic operators, regime classifiers, and auto-synthesizer.
 - [x] Golden conformance test verifying JSON schema synchronization with `schema/mcp/mcp_tools.json`.
+- [ ] `cargo test -p honba-nou-filings`: Retrieval relevance tests, closed-grammar `DriverScore` validation (zero-citation rejection), and citation-verification round-trips against `honba-data`'s `verify_quote`.
